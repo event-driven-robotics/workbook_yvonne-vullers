@@ -35,7 +35,7 @@ public:
         eros_k = rf.check("eros_k", Value(9)).asInt32();
         eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
-        filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-anne-gabrielle-vullers/code/star.png")).asString(); 
+        filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-vullers/code/star.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
     /* prepare and configure the resource finder */
     yarp::os::ResourceFinder rf;
     rf.setDefaultContext("event-driven");
-    rf.setDefaultConfigFile("/usr/local/src/workbook_yvonne-anne-gabrielle-vullers/code/config.ini");
+    rf.setDefaultConfigFile("/usr/local/src/workbook_yvonne-vullers/code/config.ini");
     rf.setVerbose(false);
     rf.configure(argc, argv);
 

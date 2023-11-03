@@ -33,7 +33,7 @@ public:
         eros_k = rf.check("eros_k", Value(9)).asInt32();
         eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
-        filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-anne-gabrielle-vullers/code/star.png")).asString(); 
+        filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-vullers/code/star.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -63,15 +63,16 @@ public:
         }
         yInfo()<<"eros started"; 
 
-        eros_handler.eros_update_roi=cv::Rect(0,0,640,480);
+        //eros_handler.eros_update_roi=cv::Rect(0,0,640,480);
 
-        affine_handler.init(translation, angle, pscale, nscale);
-        affine_handler.initState();
-        affine_handler.loadTemplate(img_size, filename);
+        affine_handler.init(translation, angle, pscale, nscale);    // KEEP
+        affine_handler.initState();                                 // KEEP
+        affine_handler.loadTemplate(img_size, filename);            // load star and apply filters. Initialize to center of frame. CHANGE TO CREATE ELLIPSE? OR NOT NEEDED
+        yInfo() << img_size.width;
         // affine_handler.createStaticTemplate(img_size, 30);
         // affine_handler.triangleTemplate(img_size); 
-        affine_handler.createAffines(translation, cv::Point(img_size.width/2,img_size.height/2), angle, pscale, nscale);
-        affine_handler.create_maps(); 
+        affine_handler.createAffines(translation, cv::Point(img_size.width/2,img_size.height/2), angle, pscale, nscale); // create rotation matrices, NOT NEEDED?
+        affine_handler.create_maps();   // ?? 
 
         computation_thread = std::thread([this]{tracking_loop();});
 
@@ -111,15 +112,15 @@ public:
         while (!isStopping()) {
 
             if (run){
-                affine_handler.createDynamicTemplate();
-                affine_handler.updateAffines();
-                affine_handler.setROI();
-                affine_handler.createMapWarpings();
+                affine_handler.createDynamicTemplate();     // update template of current position. JUST NEED TO CREATE ELLIPSE BASED ON CURRENT PHI AND THETA
+                affine_handler.updateAffines();             // update templates wrt rotation and scaling based on new position. NOT NEEDED?
+                affine_handler.setROI();                    // select ROI. KEEP
+                affine_handler.createMapWarpings();         // create templates. KEEP BUT CHANGE TO ELLIPSES
                 // affine_handler.createWarpings(); 
-                affine_handler.setEROS(eros_handler.eros.getSurface());
-                affine_handler.performComparisons();
-                affine_handler.updateStateAll();
-                eros_handler.eros_update_roi = affine_handler.roi_around_shape;
+                affine_handler.setEROS(eros_handler.eros.getSurface()); // filter eros and select shape according to ROI. KEEP
+                affine_handler.performComparisons();                    // for all filters, check similarity score. KEEP
+                affine_handler.updateStateAll();                        // change states based on results. NOT NEEDED?
+                //eros_handler.eros_update_roi = affine_handler.roi_around_shape; // update EROS only in ROI 
             }
 
         }
@@ -151,7 +152,7 @@ int main(int argc, char *argv[]) {
     /* prepare and configure the resource finder */
     yarp::os::ResourceFinder rf;
     rf.setDefaultContext("event-driven");
-    rf.setDefaultConfigFile("/usr/local/src/workbook_yvonne-anne-gabrielle-vullers/code/config.ini");
+    rf.setDefaultConfigFile("/usr/local/src/workbook_yvonne-vullers/code/config.ini");
     rf.setVerbose(false);
     rf.configure(argc, argv);
 

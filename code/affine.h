@@ -57,29 +57,31 @@ public:
 
     void init(double trans, double rot, double ps, double ns){
         
-        roi_resized = cv::Mat(proc_size, CV_64F);
-        eros_resized = cv::Mat(proc_size, CV_64F);
-        mexican_resized = cv::Mat(proc_size, CV_64F);
-        o_proc_roi = proc_roi = cv::Rect(cv::Point(0, 0), proc_size);
+        roi_resized = cv::Mat(proc_size, CV_64F);                       // KEEP
+        eros_resized = cv::Mat(proc_size, CV_64F);                      // KEEP
+        mexican_resized = cv::Mat(proc_size, CV_64F);                   // KEEP (?)
+        o_proc_roi = proc_roi = cv::Rect(cv::Point(0, 0), proc_size);   // KEEP
 
+        // WHAT DOES A DO?
         for(auto &affine : affine_info) {
             affine.A = cv::Mat::zeros(2,3, CV_64F);
             affine.warped_img = cv::Mat::zeros(proc_size, CV_64F);
         }
 
+        // WHAT DO THESE DO?
         prmx = cv::Mat::zeros(proc_size, CV_32F);
         prmy = cv::Mat::zeros(proc_size, CV_32F);
         nrmx = cv::Mat::zeros(proc_size, CV_32F);
         nrmy = cv::Mat::zeros(proc_size, CV_32F);
 
-        this->translation = trans;
+        this->translation = trans;                                      // CHANGE TO PHI/THETA ROTATION
         this->angle = rot;
-        this->pscale = ps;
+        this->pscale = ps;                                              // NO SCALE
         this->nscale = ns;
     }
 
-    void initState(){
-        state[0]=0; state[1]=0; state[2]=0; state[3]=1;
+    void initState(){                                                   // KEEP (INITIALIZE CURRENT STATE OF OBJECT)
+        state[0]=0; state[1]=0; state[2]=0; state[3]=1;                 // HOW MANY STATES? THETA, PHI, ...?
     }
 
     void createAffines(double translation, cv::Point2f center, double angle, double pscale, double nscale){
@@ -142,7 +144,7 @@ public:
         roi_around_shape.width += buffer * 2;
         roi_around_shape.height += buffer * 2;
 
-        roi_around_shape = roi_around_shape & full_roi;
+        roi_around_shape = roi_around_shape & full_roi;         // HUH?
 
         roi_template = rot_scaled_tr_template(roi_around_shape);
         roi_template.convertTo(roi_template_64f, CV_64F);  // is 6 type CV_64FC1
@@ -330,7 +332,7 @@ public:
 
         // cv::Rect selected_roi(3, 3, mexican_template_64f.cols, mexican_template_64f.rows); 
 
-        if (dynamic_scale){
+        if (dynamic_scale){                                                                 // SCALE TEMPLATES TO MATCH ROI?
             pscale = double(roi_template.rows + sc_factor)/double(roi_template.rows);
             nscale = double(roi_template.rows - sc_factor)/double(roi_template.rows);
             create_map_scale(pscale, 6);

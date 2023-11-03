@@ -13,14 +13,33 @@ public:
     ev::window<ev::AE> input_port;
     ev::EROS eros;
     std::thread eros_worker;
+    cv::Rect eros_update_roi;
     ev::vNoiseFilter filter; 
+    double dt_not_read_events{0};
+    double tic{-1};
+    double dur{0};
+    double dt{0};
+    int packet_events{0};
+    int events_inside_roi{0}, n_events_eros_update{0};
 
     void erosUpdate() 
     {
+        double a = 2.01757968*pow(10,-7);
+        double b = -1.34554144*pow(10,-4);
+        double c = 3.60365584*pow(10,-2);
+        double d = -4.73514210*pow(10,0);
+        double e = 3.79484549*pow(10,2);
+        double f = 4.96081949e-04;
+        double g = -9.78739652e-02;
+        double h = 1.78702949e+02;
+
+        
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
             for(auto &v : input_port)
-                eros.update(v.x, v.y);
+                if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+3 && v.y < f*pow(v.x,2)+g*v.x+h-5){
+                    eros.update(v.x, v.y);
+                }
         }
 
         
