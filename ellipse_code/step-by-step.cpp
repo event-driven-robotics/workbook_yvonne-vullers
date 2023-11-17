@@ -18,17 +18,21 @@ private:
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
-    double rotation{M_PI/100};
+    double rotation{M_PI/80};
     double u, v, theta, phi, radius;
-    double r{0.55};
-    double a = 2.01757968*pow(10,-7);
-    double b = -1.34554144*pow(10,-4);
-    double c = 3.60365584*pow(10,-2);
-    double d = -4.73514210*pow(10,0);
-    double e = 3.79484549*pow(10,2);
-    double f = 4.96081949e-04;
-    double g = -9.78739652e-02;
-    double h = 1.78702949e+02;
+    
+    bool fast = false;
+
+    double r{0.5};
+
+    double a =  2.1263607525117082e-07 ;
+    double b =  -0.00012994337427812272 ;
+    double c =  0.03370327571278422 ;
+    double d =  -3.9643992828139734 ;
+    double e =  214.62571884811135 ;
+    double f =  0.0014607785004303083 ;
+    double g =  -0.3289652109686471 ;
+    double h =  122.1432665611946 ;
     
     cv::Mat centre;
 
@@ -44,8 +48,8 @@ public:
     bool configure(yarp::os::ResourceFinder& rf) override
     {
     
-        eros_k = rf.check("eros_k", Value(9)).asInt32();
-        eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
+        eros_k = rf.check("eros_k", Value(15)).asInt32();
+        eros_d = rf.check("eros_d", Value(0.6)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
         filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-vullers/code/star.png")).asString(); 
 
@@ -69,30 +73,30 @@ public:
 
         eros.init(img_size.width, img_size.height, eros_k, eros_d);
 
-        if (!input_port.open("/shape-position/AEa:i")){
+        if (!input_port.open("/shape-position/AEf:i")){
             yError()<<"cannot open input port";
             return false;
         }
 
-        yarp::os::Network::connect("/file6/ch0dvs:o", "/shape-position/AEa:i", "fast_tcp");
+        yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AEf:i", "fast_tcp");
 
 
-        phi = M_PI/2;
-        theta = -M_PI/4;
-        radius = 90; //125; //98
-        u = 215; //190;  //90
-        v = 180; //125;  //37
+        // phi = M_PI/6.2;
+        // theta = -M_PI/7.5;
+        // radius = 105;
+        // u = 127;
+        // v = 152;
 
-        centre = cv::Mat::zeros(260,346, CV_64F);
-        centre.at<double>(u,v) = 1;
-        centre.at<double>(u+1,v) = 1;
-        centre.at<double>(u-1,v) = 1;
-        centre.at<double>(u,v+1) = 1;
-        centre.at<double>(u,v-1) = 1;
+        phi = M_PI/4;	
+        theta = -M_PI/12;	
+        radius = 110;	
+        u = 150;	
+        v = 140;	
+        
 
 
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
-        tracker_handler.init(u,v,theta, phi, radius, r, rotation); 
+        tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast); 
     
         computation_thread = std::thread([this]{fixed_step_loop();});
         
@@ -110,9 +114,25 @@ public:
 
                 ev::info my_info = input_port.readChunkT(0.010, true);
                 for (auto &v : input_port)
-                    if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+3 && v.y < f*pow(v.x,2)+g*v.x+h-5){
+                    if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+5 && v.y < f*pow(v.x,2)+g*v.x+h){
                         eros.update(v.x, v.y);
                     }
+
+
+                if (fast == false){
+                    centre = cv::Mat::zeros(260,346, CV_64F);
+                    centre.at<double>(u,v) = 1;
+                    centre.at<double>(u+1,v) = 1;
+                    centre.at<double>(u-1,v) = 1;
+                    centre.at<double>(u,v+1) = 1;
+                    centre.at<double>(u,v-1) = 1;
+
+                    centre.at<double>(130,173) = 1;
+                    centre.at<double>(130+1,173) = 1;
+                    centre.at<double>(130-1,173) = 1;
+                    centre.at<double>(130,173+1) = 1;
+                    centre.at<double>(130,173-1) = 1;
+                }
                     
 
                             
@@ -124,7 +144,7 @@ public:
                 //std::cout << "set EROS" << std::endl;
                 tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
                 //std::cout << "compared" << std::endl;
-                tracker_handler.updateStateAll();                        // change states based on results. NOT NEEDED?
+                tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
                 //std::cout << "updated" << std::endl;
                 tracker_handler.reset(); 
                 //std::cout << "reset" << std::endl;
@@ -137,15 +157,15 @@ public:
                 // imshow("EROS ROI", tracker_handler.eros_tracked_64f);
                 //cv::imshow("EROS RESIZE", tracker_handler.eros_resized);
 
-                cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);
+                //cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);
 
                 
 	
 	            //cv::ellipse(arc,cv::Point(u-30,v-10),cv::Size(80,40),20,-180,0,cv::Scalar(255,255,255),2);
-                cv::ellipse(arc,cv::Point(145,255),cv::Size(300,80),3, -105,-60,cv::Scalar(255,255,255),4);
+                //cv::ellipse(arc,cv::Point(145,255),cv::Size(300,80),3, -105,-60,cv::Scalar(255,255,255),4);
 
 
-                arc.convertTo(arc, CV_64F);
+                //arc.convertTo(arc, CV_64F);
                 
 
 

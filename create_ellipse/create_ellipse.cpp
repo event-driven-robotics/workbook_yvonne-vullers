@@ -107,17 +107,29 @@ void eyeshape(){
 }
 int main(int argc, char** argv) 
 { 	
-	cv::Mat ellipse;
+	cv::Mat ellipse, image;
 	//eyelid(200,200);
 
 	//points();
 
 	//eyeshape();
+	image = cv::imread("/usr/local/src/workbook_yvonne-vullers/create_ellipse/eye.png", 1);
+	cv::resize(image, image, cv::Size(346, 260), cv::INTER_LINEAR);
+	image.convertTo(image, CV_32F);
+
+	std::cout << image.size() << std::endl;
+
 
 	ellipse = makeEllipse(0.4, 0, 0, 125, 125);
+
+	cv::Mat current_template = cv::Mat::zeros(260, 346, CV_32F);
+                        
+    cv::Rect temp_shape(std::max(0.0,125-251/2), std::max(0.0, 125-251/2), std::min(346 - std::max(0.0, 125-251/2 -1), 251), std::min(260 - std::max(0.0, 125-251/2 -1), 251));
+
+    ellipse.copyTo(current_template(temp_shape));    
 	
 	cv::namedWindow("ellipse", cv::WINDOW_NORMAL);
-	cv::imshow("ellipse", ellipse);
+	cv::imshow("ellipse", image + ellipse);
 	cv::waitKey(0);
 
 	// cv::Mat arc = cv::Mat::zeros(1000,1000, CV_32F);

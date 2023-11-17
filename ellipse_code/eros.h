@@ -24,22 +24,21 @@ public:
 
     void erosUpdate() 
     {
-        double a = 2.01757968*pow(10,-7);
-        double b = -1.34554144*pow(10,-4);
-        double c = 3.60365584*pow(10,-2);
-        double d = -4.73514210*pow(10,0);
-        double e = 3.79484549*pow(10,2);
-        double f = 4.96081949e-04;
-        double g = -9.78739652e-02;
-        double h = 1.78702949e+02;
-
+    double a =  2.1263607525117082e-07 ;
+    double b =  -0.00012994337427812272 ;
+    double c =  0.03370327571278422 ;
+    double d =  -3.9643992828139734 ;
+    double e =  214.62571884811135 ;
+    double f =  0.0014607785004303083 ;
+    double g =  -0.3289652109686471 ;
+    double h =  122.1432665611946 ;
         
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
             for(auto &v : input_port)
-                if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+3 && v.y < f*pow(v.x,2)+g*v.x+h-5){
+                // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+3 && v.y < f*pow(v.x,2)+g*v.x+h-5){
                     eros.update(v.x, v.y);
-                }
+                // }
         }
 
         

@@ -21,7 +21,7 @@ public:
 
     std::vector<double> scores_vector; 
 
-    cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized, cur, current_template, rectangle_eros;
+    cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized, cur, current_template, rectangle_eros, vis_ellipse;
     cv::Point2d initial_position, new_position;
     cv::Point2d new_center; 
     cv::Mat eyelid_shape;
@@ -42,22 +42,41 @@ public:
         {   0,  0 }
     };
     double frame_width, frame_height;
+    float centre_u, centre_v;
+    cv::Mat centre_cut, centre_full;
+    cv::Rect filter_crop, crop_shape;
+    int filter_shape_x,filter_shape_y;
+    bool speed;
 
     
 
 public:
 
-    void init(double u, double v, double yaw, double pitch, double radius, double ratio, double rot){
+    void init(double u, double v, double yaw, double pitch, double radius, double ratio, double rot, bool fast){
         
         state[0]=u; state[1]=v; state[2]=yaw; state[3]=pitch; state[4]=radius;
         
         this->r = ratio;
         this->rotation = rot;
 
+        speed = fast;
+
         for (int i = 0; i < sizeof(rot_mat)/sizeof(rot_mat[0]); i++){
 		    rot_mat[i][0] = rot*rot_mat[i][0];
 		    rot_mat[i][1] = rot*rot_mat[i][1];
 	    }
+
+        // only works when 1 size is used
+        frame_height = 2*radius+1;
+        frame_width = 2*radius+1;
+
+        filter_crop = cv::Rect(std::max(0.0, (frame_width-cam[eyeTracking::w])/2), std::max(0.0, (frame_height-cam[eyeTracking::h])/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
+        filter_shape_x = std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width);
+        filter_shape_y =  std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2) -1, frame_height);
+
+        crop_shape = cv::Rect(std::max(0.0, state[1]-frame_width/2), std::max(0.0, state[0]-frame_height/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
+
+
 
         cur = makeEllipse(state[2], state[3], state[4], state[4]);        
         
@@ -102,36 +121,57 @@ public:
         double x = 0;
         double y = 0;
 
+        float rcos_theta = r*cos(theta);
+        float root = sqrt(1-pow(r,2))*sin(theta);
+        float rsin_phi = r*sin(phi);
+        float rcos_phi = r*cos(phi);
+
 
         for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
             // YAW (y) & PITCH (x)
-            // x = r*cos(t)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-            // y = r*sin(t)*cos(phi)-sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
+            if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
+                // x = r*cos(t)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+                // y = r*sin(t)*cos(phi)-sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
 
-            // YAW (Y) & ROLL (z)
-            x = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*cos(phi) - r*sin(t)*sin(phi) + 1;
-            y = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*sin(phi) + r*sin(t)*cos(phi) + 1;
+                x = rcos_theta*cos(t) + root + 1;
+                y = rcos_phi*sin(t) - sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
 
-            // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
+                // YAW (Y) & ROLL (z)
+                // x = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*cos(phi) - r*sin(t)*sin(phi) + 1;
+                // y = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*sin(phi) + r*sin(t)*cos(phi) + 1;
 
-            ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+                // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
 
-            // if((t > -3*M_PI/4 && t < -M_PI/4) || (t > M_PI/4 && t < 3*M_PI/4)){
-			//     ell_filter.at<float>(round(y*width),round(x*height)) = 1;
-		    // }
+                ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+
+                // if((t > -3*M_PI/4 && t < -M_PI/4) || (t > M_PI/4 && t < 3*M_PI/4)){
+                //     ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+                // }
+            }
         }
 
-        //resize
+        cv::Mat tempCur = cv::Mat::zeros(filter_shape_x, filter_shape_y, CV_32F);
 
-        //cv::Rect cur_shape(0, 0, frame_width, std::min(frame_height,frame_height - (frame_height+state[1]- cam[eyeTracking::h])));
-        cv::Rect cur_shape(std::max(0.0, (frame_width-cam[eyeTracking::w])/2), std::max(0.0, (frame_height-cam[eyeTracking::h])/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
-        //cv::Mat tempCur = cv::Mat::zeros(std::min(frame_height,frame_height - (frame_height+state[1]- cam[eyeTracking::h])), frame_width , CV_64F);
-        cv::Mat tempCur = cv::Mat::zeros(std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2) -1, frame_height), CV_64F);
-        ell_filter(cur_shape).copyTo(tempCur);
+        ell_filter(filter_crop).copyTo(tempCur);
 
-        // std::cout << ell_filter.size() << std::endl;
+        if (speed == false){
+            vis_ellipse = cv::Mat::zeros(frame_height, frame_width, CV_32F);
 
-        // cv::imshow("filter", ell_filter);
+            centre_u = round(((sqrt(1))*sin(theta)*cos(phi)+1)*width);
+            centre_v = round(((sqrt(1))*sin(theta)*sin(phi)+1)*height);
+
+            vis_ellipse.at<float>(centre_v,centre_u) = 1;
+            vis_ellipse.at<float>(centre_v+1,centre_u) = 1;
+            vis_ellipse.at<float>(centre_v-1,centre_u) = 1;
+            vis_ellipse.at<float>(centre_v,centre_u+1) = 1;
+            vis_ellipse.at<float>(centre_v,centre_u-1) = 1;
+
+            // std::cout << centre_v << ", " << centre_u << std::endl;
+            // std::cout << state[2] << ", " << state[3] << std::endl;
+            centre_cut = cv::Mat::zeros(filter_shape_x, filter_shape_y, CV_64F);
+            vis_ellipse(filter_crop).copyTo(centre_cut);
+
+        }
 
         return tempCur;
     }
@@ -139,9 +179,12 @@ public:
     void showCurrentEllipse(){
         current_template = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
                         
-        cv::Rect temp_shape(std::max(0.0, state[1]-frame_width/2), std::max(0.0, state[0]-frame_height/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
-
-        cur.copyTo(current_template(temp_shape));        
+        cur.copyTo(current_template(crop_shape));        
+        
+        if (speed == false){
+            centre_full = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
+            centre_cut.copyTo(centre_full(crop_shape));  
+        }    
     }
 
 
@@ -186,49 +229,42 @@ public:
 
     void setEROS(const cv::Mat &eros)
     {
-        //std::cout << eros.size() << std::endl;
-        cv::Mat eros_blurred1; 
-        cv::medianBlur(eros, eros_blurred1, median_blur_eros);
-        cv::GaussianBlur(eros_blurred1, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
+        // cv::Mat eros_blurred1; 
+        // cv::medianBlur(eros, eros_blurred1, median_blur_eros);
+        // cv::GaussianBlur(eros_blurred1, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
 
-
+        cv::medianBlur(eros, eros_filtered, median_blur_eros);
         eros_filtered.convertTo(eros_tracked_64f, CV_64F, 0.003921569); 
 
         //crop 
-        //cv::Rect crop_size = cv::Rect(state[0] - frame_width/2, state[1] - std::min(frame_height,frame_height - (frame_height+state[1]- cam[eyeTracking::h]))/2, frame_width, std::min(frame_height,frame_height - (frame_height+state[1]- cam[eyeTracking::h])));
-        cv::Rect crop_size(std::max(0.0, state[1]-frame_width/2), std::max(0.0, state[0]-frame_height/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
+        //cv::Rect crop_size(std::max(0.0, state[1]-frame_width/2), std::max(0.0, state[0]-frame_height/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
         
-        //rectangle_eros = cv::rectangle(rectangle_eros, cv::Point(state[0], state[1]), cv::Point(state[0]+frame_width, state[1]+frame_height), );
-        rectangle_eros = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
+        eros_tracked_64f(crop_shape).copyTo(eros_resized);
+
+        if (speed == false){
+            rectangle_eros = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
+            cv::rectangle(rectangle_eros, crop_shape, cv::Scalar(255,0,0),1);
+            //rect_shape.copyTo(rectangle_eros(crop_size));
+
+            cv::Mat current_matrix;
+            cv::Mat concat_eros;
+            cv::Mat con_eros_crop;
+
+            eros(crop_shape).copyTo(con_eros_crop);
+            con_eros_crop.convertTo(con_eros_crop, CV_64F, 0.003921569); 
+
+            cv::hconcat(con_eros_crop, con_eros_crop, current_matrix);
+
+            cv::vconcat(current_matrix, current_matrix, concat_eros); 
+
+            cv::namedWindow("templates", cv::WINDOW_NORMAL);
+            cv::imshow("templates", concat_affines + concat_eros);
+
+            cv::namedWindow("EROS", cv::WINDOW_NORMAL);
+            cv::imshow("EROS", eros_tracked_64f);
+            
+        }
         
-        cv::rectangle(rectangle_eros, crop_size, cv::Scalar(255,0,0),1);
-        //cv::Point(state[0], state[1]), cv::Point(state[0]+frame_width, state[1]+frame_height),
-        //rect_shape.copyTo(rectangle_eros(crop_size));
-        eros_tracked_64f(crop_size).copyTo(eros_resized);
-
-        cv::namedWindow("EROS", cv::WINDOW_NORMAL);
-        cv::imshow("EROS", eros_resized);
-
-
-
-
-        cv::Mat current_matrix;
-        cv::Mat concat_eros;
-        cv::Mat con_eros_crop;
-
-        eros(crop_size).copyTo(con_eros_crop);
-        con_eros_crop.convertTo(con_eros_crop, CV_64F, 0.003921569); 
-
-        cv::hconcat(con_eros_crop, con_eros_crop, current_matrix);
-
-        cv::vconcat(current_matrix, current_matrix, concat_eros); 
-
-        cv::namedWindow("templates", cv::WINDOW_NORMAL);
-        cv::imshow("templates", concat_affines + concat_eros);
-
-
-
-
         
     }
 

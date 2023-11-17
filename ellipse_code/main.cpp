@@ -28,6 +28,7 @@ private:
 
     std::thread computation_thread;
     cv::Mat eros_conv, centre;
+    bool fast = false;
 
 public:
 
@@ -35,8 +36,8 @@ public:
     {
         // options and parameters
     
-        eros_k = rf.check("eros_k", Value(9)).asInt32();
-        eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
+        eros_k = rf.check("eros_k", Value(15)).asInt32();
+        eros_d = rf.check("eros_d", Value(0.6)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
         filename = rf.check("shape-file", Value("/usr/local/src/workbook_yvonne-vullers/code/star.png")).asString(); 
 
@@ -64,29 +65,34 @@ public:
 
 
 
-        if (!eros_handler.start(img_size, "/file6/ch0dvs:o", getName("/AEa:i"), eros_k, eros_d)) {
+        if (!eros_handler.start(img_size, "/file/ch0dvs:o", getName("/AEx:i"), eros_k, eros_d)) {
             yError() << "could not open the YARP eros handler";
             return false;
         }
         yInfo()<<"eros started"; 
 
-        phi = M_PI/2;
-        theta = -M_PI/3;
-        radius = 90; //125; //98
-        u = 215; //190;  //90
-        v = 185; //125;  //37
+        phi = M_PI/6.2;
+        theta = -M_PI/7.5;
+        radius = 100;
+        u = 127;
+        v = 152;
+        if (fast == false){
 
-        centre = cv::Mat::zeros(260,346, CV_64F);
-        centre.at<double>(u,v) = 1;
-        centre.at<double>(u+1,v) = 1;
-        centre.at<double>(u-1,v) = 1;
-        centre.at<double>(u,v+1) = 1;
-        centre.at<double>(u,v-1) = 1;
+            centre = cv::Mat::zeros(260,346, CV_64F);
+            centre.at<double>(u,v) = 1;
+            centre.at<double>(u+1,v) = 1;
+            centre.at<double>(u-1,v) = 1;
+            centre.at<double>(u,v+1) = 1;
+            centre.at<double>(u,v-1) = 1;
+
+        }
+
+        
 
 
 
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
-        tracker_handler.init(u,v,theta, phi, radius, r, rotation);                                 // KEEP
+        tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast);                                 // KEEP
         computation_thread = std::thread([this]{tracking_loop();});
 
         if(!run) yInfo() << "WARNING: press G to start tracking (--run)";
@@ -116,7 +122,7 @@ public:
         int c = cv::waitKey(1);
 
         if (c == 32)
-            tracker_handler.init(u,v,theta, phi, radius, r, rotation);
+            tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast);
         if (c == 'g')
             run = true;
 
@@ -138,7 +144,7 @@ public:
                 //std::cout << "set EROS" << std::endl;
                 tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
                 //std::cout << "compared" << std::endl;
-                tracker_handler.updateStateAll();                        // change states based on results. NOT NEEDED?
+                tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
                 //std::cout << "updated" << std::endl;
                 tracker_handler.reset(); 
                 //std::cout << "reset" << std::endl;
