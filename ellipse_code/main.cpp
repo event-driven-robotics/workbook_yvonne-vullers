@@ -16,9 +16,9 @@ private:
     double eros_k, eros_d;
     std::string filename; 
     //double translation{1}, angle{1}, pscale{1.001}, nscale{0.995};
-    double rotation{M_PI/100};
+    double rotation{M_PI/80};
     double u, v, theta, phi, radius;
-    double r{0.55};
+    double r{0.5};
     
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
@@ -28,7 +28,8 @@ private:
 
     std::thread computation_thread;
     cv::Mat eros_conv, centre;
-    bool fast = false;
+    bool fast = true;
+    std::ofstream file;
 
 public:
 
@@ -65,17 +66,18 @@ public:
 
 
 
-        if (!eros_handler.start(img_size, "/file/ch0dvs:o", getName("/AEx:i"), eros_k, eros_d)) {
+        if (!eros_handler.start(img_size, "/file/ch0dvs:o", getName("/AE:i"), eros_k, eros_d)) {
             yError() << "could not open the YARP eros handler";
             return false;
         }
         yInfo()<<"eros started"; 
+        
+        phi = M_PI/3.5;
+        theta = -M_PI/32;
+        radius = 120;
+        u = 200;
+        v = 135;
 
-        phi = M_PI/6.2;
-        theta = -M_PI/7.5;
-        radius = 100;
-        u = 127;
-        v = 152;
         if (fast == false){
 
             centre = cv::Mat::zeros(260,346, CV_64F);
@@ -87,9 +89,15 @@ public:
 
         }
 
-        
+        file.open("/usr/local/src/workbook_yvonne-vullers/ellipse_code/center.csv");
 
+        if(!file.is_open())
+        {
+            std::cout << " not check" << std::endl;
+        }
 
+        file << std::setprecision(6) << std::fixed;
+  
 
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
         tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast);                                 // KEEP
@@ -105,16 +113,25 @@ public:
     }
         
     bool updateModule() {
+        cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);   
         cv::Mat norm_mexican;
         if (run){
+
             // std::cout << tracker_handler.eros_filtered.size() << std::endl;
             // std::cout << tracker_handler.current_template.size() << std::endl;
-            cv::imshow("EROS FULL", tracker_handler.eros_tracked_64f + tracker_handler.current_template +tracker_handler.rectangle_eros);
+            cv::imshow("EROS FULL", tracker_handler.eros_tracked_64f + tracker_handler.current_template);
            
         }
         else{
+
+        // cv::ellipse(arc,cv::Point(205,163),cv::Size(90,70),5,180,360,cv::Scalar(255,255,255),2);
+        // cv::ellipse(arc,cv::Point(185,90),cv::Size(200,80),10, 40,110,cv::Scalar(255,255,255),2);
+
+
+        arc.convertTo(arc, CV_64F);
+
             eros_handler.eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
-            cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + centre);
+            cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template);
         }
 
         
@@ -132,6 +149,8 @@ public:
     }
 
     void tracking_loop() {
+        double time_prev = 0;
+        double timer = 0;
 
         while (!isStopping()) {
 
@@ -139,6 +158,15 @@ public:
                 //std::cout << "running" << std::endl;
                 // 1) update the templates according to the current state +- a little change 
                 tracker_handler.createTemplates(5);
+
+                tracker_handler.eyeCenter();
+
+                //file << eros_handler.time << " " << tracker_handler.center_y << " " << tracker_handler.center_x << std::endl;
+                timer = eros_handler.time;
+                file << timer << " " << double(tracker_handler.ymin) << " " << float(tracker_handler.xmin) << " " << float(tracker_handler.ymax) << " " << float(tracker_handler.xmax) << " " << float(1.0) << tracker_handler.state[2] << " " << tracker_handler.state[3] << " " << std::endl;
+
+
+                //std::cout << eros_handler.time << std::endl;
                 //std::cout << "created templates" << std::endl;
                 tracker_handler.setEROS(eros_handler.eros.getSurface()); // filter eros and select shape according to ROI. KEEP
                 //std::cout << "set EROS" << std::endl;

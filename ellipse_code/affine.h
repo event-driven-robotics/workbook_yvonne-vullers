@@ -25,20 +25,17 @@ public:
     cv::Point2d initial_position, new_position;
     cv::Point2d new_center; 
     cv::Mat eyelid_shape;
+    cv::Mat centers;
 
-    int blur{11};
+    int blur{15};
     int median_blur_eros{3}; 
-    int gaussian_blur_eros{1}; 
+    int gaussian_blur_eros{1}; // CHANGE THIS
     double r, rotation;
     double rot_mat[5][2] = {
         {   1,  0 },
         {  -1,  0 },
         {   0,  1 },
         {   0,  -1},
-        // {   1,  1 },
-        // {  -1,  -1 },
-        // {   -1,  1 },
-        // {   1,  -1},
         {   0,  0 }
     };
     double frame_width, frame_height;
@@ -47,6 +44,9 @@ public:
     cv::Rect filter_crop, crop_shape;
     int filter_shape_x,filter_shape_y;
     bool speed;
+
+    double center_x, center_y;
+    double xmax, xmin, ymax, ymin, xmaxy, xminy;
 
     
 
@@ -125,11 +125,13 @@ public:
         float root = sqrt(1-pow(r,2))*sin(theta);
         float rsin_phi = r*sin(phi);
         float rcos_phi = r*cos(phi);
+        ymin = 2;
+        ymax = 0;
 
 
         for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
             // YAW (y) & PITCH (x)
-            if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
+            // if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
                 // x = r*cos(t)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
                 // y = r*sin(t)*cos(phi)-sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
 
@@ -142,12 +144,15 @@ public:
 
                 // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
 
-                ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+                // ell_filter.at<float>(round(y*width),round(x*height)) = 1;
 
-                // if((t > -3*M_PI/4 && t < -M_PI/4) || (t > M_PI/4 && t < 3*M_PI/4)){
-                //     ell_filter.at<float>(round(y*width),round(x*height)) = 1;
-                // }
-            }
+                if (y > ymax) ymax = y;
+                if (y < ymin) ymin = y;
+
+                if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
+                    ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+                }
+            // }
         }
 
         cv::Mat tempCur = cv::Mat::zeros(filter_shape_x, filter_shape_y, CV_32F);
@@ -411,6 +416,46 @@ public:
 
         cv::namedWindow("eyelid", cv::WINDOW_NORMAL);
         cv::imshow("eyelid", eyelid_shape);
+
+    }
+
+    void eyeCenter(){
+        double theta = state[2];
+        double phi = state[3];
+        double radius = state[4];
+        // center of pupil?
+        // center_x = round((sin(theta) + 1)*state[4]) + state[1] - state [4];
+        // center_y = round((-sin(phi)*cos(theta)+1)*state[4]) + state[0] - state[4];
+
+        // center of ellipse
+        xmax = r*cos(0)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+        xmin = r*cos(M_PI)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+        // xmaxy = r*cos(M_PI/2)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+        // xminy = r*cos(3*M_PI/2)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+        // ymax = r*sin(M_PI/2)*cos(phi)-sqrt(1 - pow((xmaxy-1),2) - pow(r*sin(M_PI/2),2))*sin(phi) +1;
+        // ymin = r*sin(3*M_PI/2)*cos(phi)-sqrt(1 - pow((xminy-1),2) - pow(r*sin(3*M_PI/2),2))*sin(phi) +1;
+
+        center_x = round(((xmax+xmin)/2)*radius) + state[1] - radius;
+        center_y = round(((ymax+ymin)/2)*radius) + state[0] - radius;
+
+        xmax = round(xmax*radius)+state[1] - radius;
+        xmin = round(xmin*radius)+state[1] - radius;
+        ymax = round(ymax*radius)+state[0] - radius;
+        ymin = round(ymin*radius)+state[0] - radius;
+
+        //std::cout << "center x: " << center_x << ", center y: " << center_y << std::endl;
+
+        if (speed == false){
+            centers = cv::Mat::zeros(260, 346, CV_32F);
+
+            centers.at<float>(round(center_y),round(center_x)) = 1;
+            centers.at<float>(round(center_y+1),round(center_x)) = 1;
+            centers.at<float>(round(center_y-1),round(center_x)) = 1;
+            centers.at<float>(round(center_y),round(center_x+1)) = 1;
+            centers.at<float>(round(center_y),round(center_x-1)) = 1;
+
+            centers.convertTo(centers, CV_64F);
+        }
 
     }
 };

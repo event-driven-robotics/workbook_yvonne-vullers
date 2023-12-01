@@ -16,6 +16,7 @@ public:
     cv::Rect eros_update_roi;
     ev::vNoiseFilter filter; 
     double dt_not_read_events{0};
+    double time;
     double tic{-1};
     double dur{0};
     double dt{0};
@@ -24,23 +25,25 @@ public:
 
     void erosUpdate() 
     {
-    double a =  2.1263607525117082e-07 ;
-    double b =  -0.00012994337427812272 ;
-    double c =  0.03370327571278422 ;
-    double d =  -3.9643992828139734 ;
-    double e =  214.62571884811135 ;
-    double f =  0.0014607785004303083 ;
-    double g =  -0.3289652109686471 ;
-    double h =  122.1432665611946 ;
-        
+    double a =  3.092363719928957e-07 ;
+    double b =  -0.00013699489513964642 ;
+    double c =  0.025347984304222058 ;
+    double d =  -2.498065384686753 ;
+    double e =  190.17984418965204 ;
+
+    double f =  0.0014907553516399722 ;
+    double g =  -0.2717319543680887 ;
+    double h =  141.92979888811996 ;
+
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
+            time = my_info.timestamp;
+            //std::cout << "timestamp video: " << my_info.timestamp << std::endl;
             for(auto &v : input_port)
-                // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+3 && v.y < f*pow(v.x,2)+g*v.x+h-5){
+                if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
                     eros.update(v.x, v.y);
-                // }
+                }
         }
-
         
     }
 

@@ -24,17 +24,17 @@ private:
     bool fast = false;
 
     double r{0.5};
+    double a =  3.607415131446768e-07 ;
+    double b =  -0.00027156183839202857 ;
+    double c =  0.0780311487746414 ;
+    double d =  -10.364735382262396 ;
+    double e =  599.9839263262382 ;
+    double f =  0.00241857945289617 ;
+    double g =  -0.8161690634958685 ;
+    double h =  181.43269305697876 ;
 
-    double a =  2.1263607525117082e-07 ;
-    double b =  -0.00012994337427812272 ;
-    double c =  0.03370327571278422 ;
-    double d =  -3.9643992828139734 ;
-    double e =  214.62571884811135 ;
-    double f =  0.0014607785004303083 ;
-    double g =  -0.3289652109686471 ;
-    double h =  122.1432665611946 ;
-    
     cv::Mat centre;
+
 
     ev::window<ev::AE> input_port;
 
@@ -73,28 +73,17 @@ public:
 
         eros.init(img_size.width, img_size.height, eros_k, eros_d);
 
-        if (!input_port.open("/shape-position/AEf:i")){
+        if (!input_port.open("/shape-position/AE:i")){
             yError()<<"cannot open input port";
             return false;
         }
 
-        yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AEf:i", "fast_tcp");
-
-
-        // phi = M_PI/6.2;
-        // theta = -M_PI/7.5;
-        // radius = 105;
-        // u = 127;
-        // v = 152;
-
-        phi = M_PI/4;	
-        theta = -M_PI/12;	
-        radius = 110;	
-        u = 150;	
-        v = 140;	
-        
-
-
+        yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AE:i", "fast_tcp");
+        phi = M_PI/5;
+        theta = -M_PI/12;
+        radius = 100;
+        u = 175;
+        v = 162;
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
         tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast); 
     
@@ -113,10 +102,12 @@ public:
         while (!input_port.isStopping()) {
 
                 ev::info my_info = input_port.readChunkT(0.010, true);
+                std::cout << "timestamp video: " << my_info.timestamp << std::endl;
+                
                 for (auto &v : input_port)
-                    if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e+5 && v.y < f*pow(v.x,2)+g*v.x+h){
+                    // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h-5 && v.x > 50){
                         eros.update(v.x, v.y);
-                    }
+                    // }
 
 
                 if (fast == false){
@@ -138,6 +129,7 @@ public:
                             
 
                 tracker_handler.createTemplates(5);
+                tracker_handler.eyeCenter();
                 //std::cout << "created templates" << std::endl;
                 tracker_handler.setEROS(eros.getSurface()); // filter eros and select shape according to ROI. KEEP
                 //tracker_handler.sobelEdges();
@@ -149,6 +141,8 @@ public:
                 tracker_handler.reset(); 
                 //std::cout << "reset" << std::endl;
                 yInfo()<<tracker_handler.scores_vector[0]<<tracker_handler.scores_vector[1]<<tracker_handler.scores_vector[2]<<tracker_handler.scores_vector[3] << tracker_handler.scores_vector[4];
+
+
                 // cv::Mat norm_mexican;
                 // cv::normalize(tracker_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
                 // imshow("MEXICAN ROI", tracker_handler.mexican_template_64f+0.5);
@@ -173,7 +167,7 @@ public:
                 tracker_handler.eyelid();
 
                 cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
-                cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + centre);
+                cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
 
                 cv::waitKey(0);
 

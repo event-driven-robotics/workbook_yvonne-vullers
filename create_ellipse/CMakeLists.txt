@@ -10,7 +10,7 @@ find_package(YARP COMPONENTS os sig REQUIRED)
 find_package(event-driven REQUIRED)
 
 add_executable(${PROJECT_NAME} create_ellipse.cpp)
-
+add_executable(data readData.cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE YARP::YARP_os
         YARP::YARP_init
