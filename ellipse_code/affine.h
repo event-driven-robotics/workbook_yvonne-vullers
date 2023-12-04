@@ -13,18 +13,13 @@ public:
     std::array<double, 6> cam;
     std::array<double, 5> state;
 
-    std::vector<cv::Mat> template_matrices;
+    std::array<double, 4> updates;
+
     std::vector<cv::Mat> mexican_templates;
-
     cv::Mat concat_affines; 
-
-
     std::vector<double> scores_vector; 
 
-    cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized, cur, current_template, rectangle_eros, vis_ellipse;
-    cv::Point2d initial_position, new_position;
-    cv::Point2d new_center; 
-    cv::Mat eyelid_shape;
+    cv::Mat eros_filtered, eros_tracked_64f, eros_resized, cur, current_template, rectangle_eros, vis_ellipse;
     cv::Mat centers;
 
     int blur{15};
@@ -45,9 +40,9 @@ public:
     int filter_shape_x,filter_shape_y;
     bool speed;
 
-    double center_x, center_y;
-    double xmax, xmin, ymax, ymin, xmaxy, xminy;
-
+    double center_x_small, center_y_small, center_x, center_y;
+    double xmax, xmin, ymax, ymin;
+    double scale;
     
 
 public:
@@ -58,12 +53,13 @@ public:
         
         this->r = ratio;
         this->rotation = rot;
+        scale = sqrt(1-pow(r,2));
 
         speed = fast;
 
         for (int i = 0; i < sizeof(rot_mat)/sizeof(rot_mat[0]); i++){
-		    rot_mat[i][0] = rot*rot_mat[i][0];
-		    rot_mat[i][1] = rot*rot_mat[i][1];
+		    rot_mat[i][0] = (rot/radius)*rot_mat[i][0];
+		    rot_mat[i][1] = (rot/radius)*rot_mat[i][1];
 	    }
 
         // only works when 1 size is used
@@ -114,46 +110,49 @@ public:
 
     cv::Mat makeEllipse (double theta, double phi, int height, int width){
 	
-        frame_height = 2*height+1;
-        frame_width = 2*width+1;
+        // frame_height = 2*height+1;
+        // frame_width = 2*width+1;
 
         cv::Mat ell_filter = cv::Mat::zeros(frame_height, frame_width, CV_32F);
         double x = 0;
         double y = 0;
 
-        float rcos_theta = r*cos(theta);
-        float root = sqrt(1-pow(r,2))*sin(theta);
-        float rsin_phi = r*sin(phi);
+        
+        float cos_theta = cos(theta);
+        float sin_theta = sin(theta);
+        float root = sqrt(1-pow(r,2));
+        float sin_phi = sin(phi);
         float rcos_phi = r*cos(phi);
         ymin = 2;
         ymax = 0;
 
-
         for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
             // YAW (y) & PITCH (x)
             // if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
-                // x = r*cos(t)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-                // y = r*sin(t)*cos(phi)-sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
+            x = r*cos(t)*cos_theta + root*sin_theta + 1;
+            y = (r*cos(t)*sin_theta-root*cos_theta)*sin_phi + rcos_phi*sin(t) + 1;
 
-                x = rcos_theta*cos(t) + root + 1;
-                y = rcos_phi*sin(t) - sqrt(1 - pow((x-1),2) - pow(r*sin(t),2))*sin(phi) +1;
+            // YAW (Y) & ROLL (z)
+            // x = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*cos(phi) - r*sin(t)*sin(phi) + 1;
+            // y = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*sin(phi) + r*sin(t)*cos(phi) + 1;
 
-                // YAW (Y) & ROLL (z)
-                // x = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*cos(phi) - r*sin(t)*sin(phi) + 1;
-                // y = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*sin(phi) + r*sin(t)*cos(phi) + 1;
+            // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
 
-                // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
+            // ell_filter.at<float>(round(y*width),round(x*height)) = 1;
 
-                // ell_filter.at<float>(round(y*width),round(x*height)) = 1;
 
-                if (y > ymax) ymax = y;
-                if (y < ymin) ymin = y;
+            if (y > ymax) ymax = y;
+            if (y < ymin) ymin = y;
 
-                if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
-                    ell_filter.at<float>(round(y*width),round(x*height)) = 1;
-                }
+            
+
+            if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){        
+                ell_filter.at<float>(round(y*width),round(x*height)) = 1;
+                
+            }
             // }
         }
+        
 
         cv::Mat tempCur = cv::Mat::zeros(filter_shape_x, filter_shape_y, CV_32F);
 
@@ -194,13 +193,33 @@ public:
 
 
     void createTemplates (int n_templates){
+        float update_theta, update_phi;
+        cv::Mat template_matrix_last;
+
+        for (int i =0; i<n_templates-1; i++){
+            update_theta = 0;
+            update_phi = 0;
+            
+
+            if (i == 0){
+                template_matrix_last = makeEllipse(state[2], state[3], state[4], state[4]);
+                eyeCenter();
+
+            }
 
 
-        // draw ellipse accoring to the function omn template matrices black images initialized in the function init
-
-        for (int i =0; i<n_templates; i++){
-
-            cv::Mat template_matrix = makeEllipse(state[2] + rot_mat[i][0], state[3] + rot_mat[i][1], state[4], state[4]); // 8u is gray scale image with numbers from 0 to 255... you could need 32f or 64f in the future
+            if (rot_mat[i][0] == 0 && rot_mat[i][1] != 0){
+                update_phi = asin(std::min(1.0, std::max(-1.0,-(center_y_small+rot_mat[i][1]-1)/(scale*cos(state[2]))))) - state[3];
+                updates[i] = update_phi;
+                // np.arcsin(-(y_center2+pixel_shift)/(scale*np.cos(theta))) - phi
+            }
+            else if (rot_mat[i][1] == 0 && rot_mat[i][0] != 0){
+                update_theta = asin(std::min(1.0, std::max(-1.0, (center_x_small+rot_mat[i][0]-1)/scale))) - state[2];
+                updates[i] = update_theta;
+                // np.arcsin((x_center2+pixel_shift)/scale) - theta
+            }
+            
+            cv::Mat template_matrix = makeEllipse(state[2] + update_theta, state[3] + update_phi, state[4], state[4]); // 8u is gray scale image with numbers from 0 to 255... you could need 32f or 64f in the future
 
             cv::Mat mexican_template; 
             // mexican blur 
@@ -209,27 +228,35 @@ public:
 
             mexican_templates.push_back(mexican_template); 
         }
-        cur = mexican_templates[4];
+
+        cv::Mat mexican_template; 
+        make_template(template_matrix_last, mexican_template); 
+        mexican_template.convertTo(mexican_template, CV_64F); 
+
+        mexican_templates.push_back(mexican_template); 
+        cur = mexican_template;
         
         showCurrentEllipse();
 
-        std::vector<cv::Mat> couple_matrix;
-        for (int i=0; i<mexican_templates.size()-1; i++){
-                if (i%2==0){
-                    cv::Mat mat_left = mexican_templates[i];
-                    cv::Mat mat_right = mexican_templates[i+1];
-                    cv::Mat current_matrix; 
-                    cv::hconcat(mat_left, mat_right, current_matrix);
-                    couple_matrix.push_back(current_matrix);
+        if (speed == false){
+            std::vector<cv::Mat> couple_matrix;
+            for (int i=0; i<mexican_templates.size()-1; i++){
+                    if (i%2==0){
+                        cv::Mat mat_left = mexican_templates[i];
+                        cv::Mat mat_right = mexican_templates[i+1];
+                        cv::Mat current_matrix; 
+                        cv::hconcat(mat_left, mat_right, current_matrix);
+                        couple_matrix.push_back(current_matrix);
+                    }
+
                 }
 
-            }
+                if (couple_matrix.size() != 0)
+                    cv::vconcat(couple_matrix, concat_affines); 
+            
 
-            if (couple_matrix.size() != 0)
-                cv::vconcat(couple_matrix, concat_affines); 
-        
-
-        couple_matrix.clear(); 
+            couple_matrix.clear(); 
+        }
     }
 
     void setEROS(const cv::Mat &eros)
@@ -241,9 +268,6 @@ public:
         cv::medianBlur(eros, eros_filtered, median_blur_eros);
         eros_filtered.convertTo(eros_tracked_64f, CV_64F, 0.003921569); 
 
-        //crop 
-        //cv::Rect crop_size(std::max(0.0, state[1]-frame_width/2), std::max(0.0, state[0]-frame_height/2), std::min(cam[eyeTracking::w] - std::max(0.0, state[1]-frame_width/2 -1), frame_width), std::min(cam[eyeTracking::h] - std::max(0.0, state[0]-frame_height/2 -1), frame_height));
-        
         eros_tracked_64f(crop_shape).copyTo(eros_resized);
 
         if (speed == false){
@@ -286,32 +310,47 @@ public:
         }
     }
 
+    // void updateState(){
+
+    //     double no_motion = scores_vector[4];
+    //     int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
+    //     double best_score = *max_element(scores_vector.begin(), scores_vector.end());
+
+    //     if(no_motion!=0){
+    //         if (best_score_index == 0)
+    //             state[2] += rotation;
+    //         else if (best_score_index == 1)
+    //             state[2] -= rotation;
+    //         else if (best_score_index == 2)
+    //             state[3] += rotation;
+    //         else if (best_score_index == 3)
+    //             state[3] -= rotation;
+    //     }
+
+    // }
+
     void updateState(){
 
         double no_motion = scores_vector[4];
         int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
         double best_score = *max_element(scores_vector.begin(), scores_vector.end());
-        // yInfo() << scores_vector;
-        // yInfo() << "highest score =" << best_score_index << best_score;
+
         if(no_motion!=0){
             if (best_score_index == 0)
-                state[2] += rotation;
+                state[2] += updates[0];
             else if (best_score_index == 1)
-                state[2] -= rotation;
+                state[2] += updates[1];
             else if (best_score_index == 2)
-                state[3] += rotation;
+                state[3] += updates[2];
             else if (best_score_index == 3)
-                state[3] -= rotation;
+                state[3] += updates[3];
         }
+
+        // std::cout << state[2]<< ", " << state[3] << std::endl;
 
     }
 
     void updateStateAll(){
-
-        // int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        // double best_score = *max_element(scores_vector.begin(), scores_vector.end());
-        // yInfo() << scores_vector;
-        // yInfo() << "highest score =" << best_score_index << best_score;
         double no_motion = scores_vector[4];
 
         if(scores_vector[0] > no_motion) state[2] += rotation;
@@ -321,129 +360,26 @@ public:
 
     }
 
-    void updateStateCustom4(){
-        double no_motion = scores_vector[4];
-        int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        int best_score_index2 = std::max_element(scores_vector.begin(), scores_vector.end()-1) - scores_vector.begin();
-
-        if(no_motion < 6 && no_motion!=0){
-            if (best_score_index2 == 0)
-                state[2] += rotation;
-            else if (best_score_index2 == 1)
-                state[2] -= rotation;
-            else if (best_score_index2 == 2)
-                state[3] += rotation;
-            else if (best_score_index2 == 3)
-                state[3] -= rotation;
-        }
-        
-    }
-
-
-    void updateStateCustomBest(){
-        double no_motion = scores_vector[8];
-        int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        int best_score_index2 = std::max_element(scores_vector.begin(), scores_vector.end()-1) - scores_vector.begin();
-
-        if(no_motion < 10 && no_motion!=0){
-            if (best_score_index2 == 0)
-                state[2] += rotation;
-            else if (best_score_index2 == 1)
-                state[2] -= rotation;
-            else if (best_score_index2 == 2)
-                state[3] += rotation;
-            else if (best_score_index2 == 3)
-                state[3] -= rotation;
-            else if (best_score_index2 == 4){
-                state[2] += rotation;
-                state[3] += rotation;
-            }
-                
-            else if (best_score_index2 == 5){
-                state[2] -= rotation;
-                state[3] +- rotation;
-            }
-            else if (best_score_index2 == 6){
-                state[2] -= rotation;
-                state[3] += rotation;
-            }
-            else if (best_score_index2 == 7){
-                state[2] += rotation;
-                state[3] -= rotation;
-            }
-
-        
-        }
-
-    }
-
-
-    void updateStateCustom(){
-        double no_motion = scores_vector[4];
-        int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        int best_score_index2 = std::max_element(scores_vector.begin(), scores_vector.end()-1) - scores_vector.begin();
-
-        if(no_motion < 10 && no_motion!=0){
-            if (scores_vector[0] > 0.3*no_motion)
-                state[2] += rotation;
-            if (scores_vector[1] > 0.3*no_motion)
-                state[2] -= rotation;
-            if (scores_vector[2] > 0.3*no_motion)
-                state[3] += rotation;
-            if (scores_vector[3] > 0.3*no_motion)
-                state[3] -= rotation;
-
-        
-        }
-
-    }
-
-
-   void eyelid(){
-        eyelid_shape = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
-
-        double a = 2.01757968*pow(10,-7);
-        double b = -1.34554144*pow(10,-4);
-        double c = 3.60365584*pow(10,-2);
-        double d = -4.73514210*pow(10,0);
-        double e = 3.79484549*pow(10,2);
-
-        for(int x = 82; x <300; x++){
-            int y = a*pow(x,4)+b*pow(x,3)+c*pow(x,2)+d*x+e;
-            eyelid_shape.at<double>(round(y), x) = 1;
-        }
-
-
-        cv::namedWindow("eyelid", cv::WINDOW_NORMAL);
-        cv::imshow("eyelid", eyelid_shape);
-
-    }
 
     void eyeCenter(){
         double theta = state[2];
         double phi = state[3];
         double radius = state[4];
-        // center of pupil?
-        // center_x = round((sin(theta) + 1)*state[4]) + state[1] - state [4];
-        // center_y = round((-sin(phi)*cos(theta)+1)*state[4]) + state[0] - state[4];
 
-        // center of ellipse
+        center_x_small = sqrt(1-pow(r,2))*sin(theta) + 1;
+        center_y_small = sqrt(1-pow(r,2))*(-sin(phi)*cos(theta)) + 1;
+        center_x = round(center_x_small*state[4]) + state[1] - state [4];
+        center_y = round(center_y_small*state[4]) + state[0] - state[4];
+        // center_x = round(((xmax+xmin)/2)*radius) + state[1] - radius;
+        // center_y = round(((ymax+ymin)/2)*radius) + state[0] - radius;
+
         xmax = r*cos(0)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
         xmin = r*cos(M_PI)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-        // xmaxy = r*cos(M_PI/2)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-        // xminy = r*cos(3*M_PI/2)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-        // ymax = r*sin(M_PI/2)*cos(phi)-sqrt(1 - pow((xmaxy-1),2) - pow(r*sin(M_PI/2),2))*sin(phi) +1;
-        // ymin = r*sin(3*M_PI/2)*cos(phi)-sqrt(1 - pow((xminy-1),2) - pow(r*sin(3*M_PI/2),2))*sin(phi) +1;
-
-        center_x = round(((xmax+xmin)/2)*radius) + state[1] - radius;
-        center_y = round(((ymax+ymin)/2)*radius) + state[0] - radius;
 
         xmax = round(xmax*radius)+state[1] - radius;
         xmin = round(xmin*radius)+state[1] - radius;
         ymax = round(ymax*radius)+state[0] - radius;
         ymin = round(ymin*radius)+state[0] - radius;
-
-        //std::cout << "center x: " << center_x << ", center y: " << center_y << std::endl;
 
         if (speed == false){
             centers = cv::Mat::zeros(260, 346, CV_32F);

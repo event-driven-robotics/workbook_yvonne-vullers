@@ -16,7 +16,8 @@ private:
     double eros_k, eros_d;
     std::string filename; 
     //double translation{1}, angle{1}, pscale{1.001}, nscale{0.995};
-    double rotation{M_PI/80};
+    // double rotation{M_PI/80};
+    double rotation{4};
     double u, v, theta, phi, radius;
     double r{0.5};
     
@@ -72,11 +73,11 @@ public:
         }
         yInfo()<<"eros started"; 
         
-        phi = M_PI/3.5;
-        theta = -M_PI/32;
-        radius = 120;
-        u = 200;
-        v = 135;
+        phi = M_PI/3.6;
+        theta = 0;
+        radius = 98;
+        u = 220;
+        v = 185;
 
         if (fast == false){
 
@@ -159,7 +160,7 @@ public:
                 // 1) update the templates according to the current state +- a little change 
                 tracker_handler.createTemplates(5);
 
-                tracker_handler.eyeCenter();
+                // tracker_handler.eyeCenter();
 
                 //file << eros_handler.time << " " << tracker_handler.center_y << " " << tracker_handler.center_x << std::endl;
                 timer = eros_handler.time;

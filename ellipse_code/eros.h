@@ -25,15 +25,14 @@ public:
 
     void erosUpdate() 
     {
-    double a =  3.092363719928957e-07 ;
-    double b =  -0.00013699489513964642 ;
-    double c =  0.025347984304222058 ;
-    double d =  -2.498065384686753 ;
-    double e =  190.17984418965204 ;
-
-    double f =  0.0014907553516399722 ;
-    double g =  -0.2717319543680887 ;
-    double h =  141.92979888811996 ;
+    double a = 2.01757968*pow(10,-7);
+    double b = -1.34554144*pow(10,-4);
+    double c = 3.60365584*pow(10,-2);
+    double d = -4.73514210*pow(10,0);
+    double e = 3.79484549*pow(10,2);
+    double f = 4.96081949e-04;
+    double g = -9.78739652e-02;
+    double h = 1.78702949e+02;
 
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);

@@ -18,20 +18,20 @@ private:
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
-    double rotation{M_PI/80};
+    double rotation{1};
     double u, v, theta, phi, radius;
     
     bool fast = false;
 
     double r{0.5};
-    double a =  3.607415131446768e-07 ;
-    double b =  -0.00027156183839202857 ;
-    double c =  0.0780311487746414 ;
-    double d =  -10.364735382262396 ;
-    double e =  599.9839263262382 ;
-    double f =  0.00241857945289617 ;
-    double g =  -0.8161690634958685 ;
-    double h =  181.43269305697876 ;
+    double a = 2.01757968*pow(10,-7);
+    double b = -1.34554144*pow(10,-4);
+    double c = 3.60365584*pow(10,-2);
+    double d = -4.73514210*pow(10,0);
+    double e = 3.79484549*pow(10,2);
+    double f = 4.96081949e-04;
+    double g = -9.78739652e-02;
+    double h = 1.78702949e+02;
 
     cv::Mat centre;
 
@@ -79,11 +79,11 @@ public:
         }
 
         yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AE:i", "fast_tcp");
-        phi = M_PI/5;
-        theta = -M_PI/12;
-        radius = 100;
-        u = 175;
-        v = 162;
+        phi = M_PI/3.6;
+        theta = 0;
+        radius = 98;
+        u = 220;
+        v = 185;
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
         tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast); 
     
@@ -105,9 +105,9 @@ public:
                 std::cout << "timestamp video: " << my_info.timestamp << std::endl;
                 
                 for (auto &v : input_port)
-                    // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h-5 && v.x > 50){
+                    if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h-5 && v.x > 50){
                         eros.update(v.x, v.y);
-                    // }
+                    }
 
 
                 if (fast == false){
@@ -129,7 +129,7 @@ public:
                             
 
                 tracker_handler.createTemplates(5);
-                tracker_handler.eyeCenter();
+                // tracker_handler.eyeCenter();
                 //std::cout << "created templates" << std::endl;
                 tracker_handler.setEROS(eros.getSurface()); // filter eros and select shape according to ROI. KEEP
                 //tracker_handler.sobelEdges();
@@ -164,7 +164,6 @@ public:
 
 
                 eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
-                tracker_handler.eyelid();
 
                 cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
                 cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
