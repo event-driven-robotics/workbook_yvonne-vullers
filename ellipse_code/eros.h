@@ -23,33 +23,39 @@ public:
     int packet_events{0};
     int events_inside_roi{0}, n_events_eros_update{0};
 
+    double a, b, c, d, e, f, g, h;
+
     void erosUpdate() 
     {
-    double a = 2.01757968*pow(10,-7);
-    double b = -1.34554144*pow(10,-4);
-    double c = 3.60365584*pow(10,-2);
-    double d = -4.73514210*pow(10,0);
-    double e = 3.79484549*pow(10,2);
-    double f = 4.96081949e-04;
-    double g = -9.78739652e-02;
-    double h = 1.78702949e+02;
-
+        
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
             time = my_info.timestamp;
+            
             //std::cout << "timestamp video: " << my_info.timestamp << std::endl;
-            for(auto &v : input_port)
+            for(auto &v : input_port){
                 if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
                     eros.update(v.x, v.y);
                 }
+            }
         }
         
     }
 
 public:
-    bool start(cv::Size resolution, std::string sourcename, std::string portname, int k, double d)
+    bool start(cv::Size resolution, std::string sourcename, std::string portname, int k, double dec, double a_in, double b_in, double c_in, double d_in, double e_in, double f_in, double g_in, double h_in)
     {
-        eros.init(resolution.width, resolution.height, k, d);
+
+        a = a_in;
+        b = b_in;
+        c = c_in;
+        d = d_in;
+        e = e_in;
+        f = f_in;
+        g = g_in;
+        h = h_in;
+
+        eros.init(resolution.width, resolution.height, k, dec);
 
         if (!input_port.open(portname))
             return false;

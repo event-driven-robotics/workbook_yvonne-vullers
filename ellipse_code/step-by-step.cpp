@@ -1,7 +1,9 @@
 #include <yarp/os/all.h>
 #include <event-driven/algs.h>
 #include <event-driven/vis.h>
-
+#include <fstream>
+#include <iostream>
+#include <sstream>
 using namespace yarp::os;
 
 #include "affine.h"
@@ -13,28 +15,23 @@ private:
     cv::Size img_size;
     double period{0.01};
     double eros_k, eros_d;
-    double tau_latency{0};
-    double recording_duration, elapsed_time{0}; 
-    bool run{false};
-    double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
-    double rotation{1};
+    double rotation{3};
     double u, v, theta, phi, radius;
     
-    bool fast = false;
+    bool fast = true;
 
     double r{0.5};
-    double a = 2.01757968*pow(10,-7);
-    double b = -1.34554144*pow(10,-4);
-    double c = 3.60365584*pow(10,-2);
-    double d = -4.73514210*pow(10,0);
-    double e = 3.79484549*pow(10,2);
-    double f = 4.96081949e-04;
-    double g = -9.78739652e-02;
-    double h = 1.78702949e+02;
+    double begin_time;
+
+    double a, b, c, d, e, f, g, h;
+
+    int user = 5;
+    int eye = 0;
+
+    std::ofstream file;
 
     cv::Mat centre;
-
 
     ev::window<ev::AE> input_port;
 
@@ -71,19 +68,41 @@ public:
 
         yInfo() << "Camera Size:" << img_size.width << "x" << img_size.height;
 
+        yarp::os::Bottle& user_params = rf.findGroup("USER_" + std::to_string(user) + "_" + std::to_string(eye));
+
+        phi = user_params.find("phi").asFloat64();
+        theta = user_params.find("theta").asFloat64();
+        radius = user_params.find("radius").asFloat64();
+        u = user_params.find("u").asFloat64();
+        v = user_params.find("v").asFloat64();
+        a = user_params.find("a").asFloat64();
+        b = user_params.find("b").asFloat64();
+        c = user_params.find("c").asFloat64();
+        d = user_params.find("d").asFloat64();
+        e = user_params.find("e").asFloat64();
+        f = user_params.find("f").asFloat64();
+        g = user_params.find("g").asFloat64();
+        h = user_params.find("h").asFloat64();
+        begin_time = user_params.find("begin").asFloat64();
+
         eros.init(img_size.width, img_size.height, eros_k, eros_d);
 
         if (!input_port.open("/shape-position/AE:i")){
             yError()<<"cannot open input port";
             return false;
         }
+        file.open("/usr/local/src/workbook_yvonne-vullers/ellipse_code/center.csv");
+
+        if(!file.is_open())
+        {
+            std::cout << " not check" << std::endl;
+        }
+
+        file << std::setprecision(6) << std::fixed;
+
 
         yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AE:i", "fast_tcp");
-        phi = M_PI/3.6;
-        theta = 0;
-        radius = 98;
-        u = 220;
-        v = 185;
+
         // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
         tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast); 
     
@@ -99,82 +118,89 @@ public:
 
     void fixed_step_loop() {
 
+        double timer = 0;
         while (!input_port.isStopping()) {
 
-                ev::info my_info = input_port.readChunkT(0.010, true);
-                std::cout << "timestamp video: " << my_info.timestamp << std::endl;
+                ev::info my_info = input_port.readChunkT(0.004, true); //multiple of 4
+                timer = my_info.timestamp;
+                // std::cout << "timestamp video: " << timer << std::endl;
                 
-                for (auto &v : input_port)
-                    if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h-5 && v.x > 50){
-                        eros.update(v.x, v.y);
+                if (timer > begin_time){
+                    for (auto &v : input_port)
+                        if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
+                            eros.update(v.x, v.y);
+                        }
+
+
+                    if (fast == false){
+                        centre = cv::Mat::zeros(260,346, CV_64F);
+                        centre.at<double>(u,v) = 1;
+                        centre.at<double>(u+1,v) = 1;
+                        centre.at<double>(u-1,v) = 1;
+                        centre.at<double>(u,v+1) = 1;
+                        centre.at<double>(u,v-1) = 1;
+
+                        centre.at<double>(130,173) = 1;
+                        centre.at<double>(130+1,173) = 1;
+                        centre.at<double>(130-1,173) = 1;
+                        centre.at<double>(130,173+1) = 1;
+                        centre.at<double>(130,173-1) = 1;
                     }
+                        
+
+                                
+
+                    tracker_handler.createTemplates(5);
+
+                    
+                    file << timer << " " << float(tracker_handler.ymin) << " " << float(tracker_handler.xmin) << " " << float(tracker_handler.ymax) << " " << float(tracker_handler.xmax) << " " << float(1.0) << std::endl; //<< " " << tracker_handler.center_y << " " << tracker_handler.center_x << " " << tracker_handler.no_motion << std::endl;
+
+                    // tracker_handler.eyeCenter();
+                    //std::cout << "created templates" << std::endl;
+                    tracker_handler.setEROS(eros.getSurface()); // filter eros and select shape according to ROI. KEEP
+                    //tracker_handler.sobelEdges();
+                    //std::cout << "set EROS" << std::endl;
+                    tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
+                    //std::cout << "compared" << std::endl;
+                    tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
+                    //std::cout << "updated" << std::endl;
+                    tracker_handler.reset(); 
+                    //std::cout << "reset" << std::endl;
+                    // yInfo()<<tracker_handler.scores_vector[0]<<tracker_handler.scores_vector[1]<<tracker_handler.scores_vector[2]<<tracker_handler.scores_vector[3] << tracker_handler.scores_vector[4];
 
 
-                if (fast == false){
-                    centre = cv::Mat::zeros(260,346, CV_64F);
-                    centre.at<double>(u,v) = 1;
-                    centre.at<double>(u+1,v) = 1;
-                    centre.at<double>(u-1,v) = 1;
-                    centre.at<double>(u,v+1) = 1;
-                    centre.at<double>(u,v-1) = 1;
+                    // cv::Mat norm_mexican;
+                    // cv::normalize(tracker_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
+                    // imshow("MEXICAN ROI", tracker_handler.mexican_template_64f+0.5);
+                    // imshow("TEMPLATE ROI", tracker_handler.roi_template_64f);
+                    // imshow("TEMPLATE RESIZE", tracker_handler.roi_resized);
+                    // imshow("EROS ROI", tracker_handler.eros_tracked_64f);
+                    //cv::imshow("EROS RESIZE", tracker_handler.eros_resized);
 
-                    centre.at<double>(130,173) = 1;
-                    centre.at<double>(130+1,173) = 1;
-                    centre.at<double>(130-1,173) = 1;
-                    centre.at<double>(130,173+1) = 1;
-                    centre.at<double>(130,173-1) = 1;
-                }
+                    //cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);
+
+                    
+        
+                    //cv::ellipse(arc,cv::Point(u-30,v-10),cv::Size(80,40),20,-180,0,cv::Scalar(255,255,255),2);
+                    //cv::ellipse(arc,cv::Point(145,255),cv::Size(300,80),3, -105,-60,cv::Scalar(255,255,255),4);
+
+
+                    //arc.convertTo(arc, CV_64F);
                     
 
-                            
 
-                tracker_handler.createTemplates(5);
-                // tracker_handler.eyeCenter();
-                //std::cout << "created templates" << std::endl;
-                tracker_handler.setEROS(eros.getSurface()); // filter eros and select shape according to ROI. KEEP
-                //tracker_handler.sobelEdges();
-                //std::cout << "set EROS" << std::endl;
-                tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
-                //std::cout << "compared" << std::endl;
-                tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
-                //std::cout << "updated" << std::endl;
-                tracker_handler.reset(); 
-                //std::cout << "reset" << std::endl;
-                yInfo()<<tracker_handler.scores_vector[0]<<tracker_handler.scores_vector[1]<<tracker_handler.scores_vector[2]<<tracker_handler.scores_vector[3] << tracker_handler.scores_vector[4];
+                    eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
 
+                    cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
+                    cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
 
-                // cv::Mat norm_mexican;
-                // cv::normalize(tracker_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-                // imshow("MEXICAN ROI", tracker_handler.mexican_template_64f+0.5);
-                // imshow("TEMPLATE ROI", tracker_handler.roi_template_64f);
-                // imshow("TEMPLATE RESIZE", tracker_handler.roi_resized);
-                // imshow("EROS ROI", tracker_handler.eros_tracked_64f);
-                //cv::imshow("EROS RESIZE", tracker_handler.eros_resized);
+                    cv::waitKey(1);
 
-                //cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);
-
-                
-	
-	            //cv::ellipse(arc,cv::Point(u-30,v-10),cv::Size(80,40),20,-180,0,cv::Scalar(255,255,255),2);
-                //cv::ellipse(arc,cv::Point(145,255),cv::Size(300,80),3, -105,-60,cv::Scalar(255,255,255),4);
-
-
-                //arc.convertTo(arc, CV_64F);
-                
-
-
-                eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
-
-                cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
-                cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
-
-                cv::waitKey(0);
-
-                
-                // cv::circle(eros_filtered, new_position, 2, 255, -1);
-                // cv::rectangle(eros_filtered, roi_around_shape, 255,1,8,0);
-                // imshow("EROS FULL", tracker_handler.eros_filtered);
-
+                    
+                    // cv::circle(eros_filtered, new_position, 2, 255, -1);
+                    // cv::rectangle(eros_filtered, roi_around_shape, 255,1,8,0);
+                    // imshow("EROS FULL", tracker_handler.eros_filtered);
+                }
         }
     }
 

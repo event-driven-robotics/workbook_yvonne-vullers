@@ -43,7 +43,7 @@ public:
     double center_x_small, center_y_small, center_x, center_y;
     double xmax, xmin, ymax, ymin;
     double scale;
-    
+    double no_motion = 0;
 
 public:
 
@@ -74,7 +74,7 @@ public:
 
 
 
-        cur = makeEllipse(state[2], state[3], state[4], state[4]);        
+        cur = makeEllipse(state[2], state[3], state[4], state[4],0);        
         
         showCurrentEllipse();
 
@@ -108,7 +108,7 @@ public:
     }
 
 
-    cv::Mat makeEllipse (double theta, double phi, int height, int width){
+    cv::Mat makeEllipse (double theta, double phi, int height, int width, int first){
 	
         // frame_height = 2*height+1;
         // frame_width = 2*width+1;
@@ -123,8 +123,12 @@ public:
         float root = sqrt(1-pow(r,2));
         float sin_phi = sin(phi);
         float rcos_phi = r*cos(phi);
-        ymin = 2;
-        ymax = 0;
+
+        if (first == 0){
+            ymin = 2;
+            ymax = 0;
+        }
+
 
         for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
             // YAW (y) & PITCH (x)
@@ -140,9 +144,11 @@ public:
 
             // ell_filter.at<float>(round(y*width),round(x*height)) = 1;
 
-
-            if (y > ymax) ymax = y;
-            if (y < ymin) ymin = y;
+            if (first == 0){
+                if (y > ymax) ymax = y;
+                if (y < ymin) ymin = y;
+            }
+            
 
             
 
@@ -195,14 +201,16 @@ public:
     void createTemplates (int n_templates){
         float update_theta, update_phi;
         cv::Mat template_matrix_last;
+        int first = 0;
 
         for (int i =0; i<n_templates-1; i++){
             update_theta = 0;
             update_phi = 0;
             
 
-            if (i == 0){
-                template_matrix_last = makeEllipse(state[2], state[3], state[4], state[4]);
+            if (first == 0){
+                template_matrix_last = makeEllipse(state[2], state[3], state[4], state[4], first);
+                first = 1;
                 eyeCenter();
 
             }
@@ -219,7 +227,7 @@ public:
                 // np.arcsin((x_center2+pixel_shift)/scale) - theta
             }
             
-            cv::Mat template_matrix = makeEllipse(state[2] + update_theta, state[3] + update_phi, state[4], state[4]); // 8u is gray scale image with numbers from 0 to 255... you could need 32f or 64f in the future
+            cv::Mat template_matrix = makeEllipse(state[2] + update_theta, state[3] + update_phi, state[4], state[4], first); // 8u is gray scale image with numbers from 0 to 255... you could need 32f or 64f in the future
 
             cv::Mat mexican_template; 
             // mexican blur 
@@ -331,7 +339,7 @@ public:
 
     void updateState(){
 
-        double no_motion = scores_vector[4];
+        no_motion = scores_vector[4];
         int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
         double best_score = *max_element(scores_vector.begin(), scores_vector.end());
 
@@ -351,7 +359,7 @@ public:
     }
 
     void updateStateAll(){
-        double no_motion = scores_vector[4];
+        no_motion = scores_vector[4];
 
         if(scores_vector[0] > no_motion) state[2] += rotation;
         if(scores_vector[1] > no_motion) state[2] -= rotation;
