@@ -40,7 +40,7 @@ public:
     int filter_shape_x,filter_shape_y;
     bool speed;
 
-    double center_x_small, center_y_small, center_x, center_y;
+    double center_x_small, center_y_small, center_x, center_y, end_x, end_y;
     double xmax, xmin, ymax, ymin;
     double scale;
     double no_motion = 0;
@@ -132,7 +132,6 @@ public:
 
         for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
             // YAW (y) & PITCH (x)
-            // if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){
             x = r*cos(t)*cos_theta + root*sin_theta + 1;
             y = (r*cos(t)*sin_theta-root*cos_theta)*sin_phi + rcos_phi*sin(t) + 1;
 
@@ -140,23 +139,19 @@ public:
             // x = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*cos(phi) - r*sin(t)*sin(phi) + 1;
             // y = (r*cos(theta)*cos(t) + sqrt(1-pow(r,2))*sin(theta))*sin(phi) + r*sin(t)*cos(phi) + 1;
 
-            // std::cout << "x: " <<  x << "  y: " << y << "  t: " << t << std::endl;
-
-            // ell_filter.at<float>(round(y*width),round(x*height)) = 1;
 
             if (first == 0){
                 if (y > ymax) ymax = y;
                 if (y < ymin) ymin = y;
             }
-            
-
-            
 
             if((t > -M_PI/4 && t < M_PI/4)||(t > 3*M_PI/4 ||t < -3*M_PI/4)){        
                 ell_filter.at<float>(round(y*width),round(x*height)) = 1;
                 
+            } else {
+                ell_filter.at<float>(round(y*width),round(x*height)) = 0;
             }
-            // }
+
         }
         
 
@@ -189,8 +184,9 @@ public:
     void showCurrentEllipse(){
         current_template = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
                         
-        cur.copyTo(current_template(crop_shape));        
-        
+        cur.copyTo(current_template(crop_shape)); 
+
+
         if (speed == false){
             centre_full = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
             centre_cut.copyTo(centre_full(crop_shape));  
@@ -376,8 +372,11 @@ public:
 
         center_x_small = sqrt(1-pow(r,2))*sin(theta) + 1;
         center_y_small = sqrt(1-pow(r,2))*(-sin(phi)*cos(theta)) + 1;
-        center_x = round(center_x_small*state[4]) + state[1] - state [4];
+        center_x = round(center_x_small*state[4]) + state[1] - state[4];
         center_y = round(center_y_small*state[4]) + state[0] - state[4];
+
+        end_x = ((((center_x - state[1] + state[4])/radius - 1)* 2)+1)*radius + state[1] - state[4];
+	    end_y = ((((center_y - state[0] + state[4])/radius - 1)* 2)+1)*radius + state[0] - state[4];
         // center_x = round(((xmax+xmin)/2)*radius) + state[1] - radius;
         // center_y = round(((ymax+ymin)/2)*radius) + state[0] - radius;
 

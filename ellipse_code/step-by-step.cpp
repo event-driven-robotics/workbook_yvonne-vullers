@@ -4,6 +4,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <chrono>
+
 using namespace yarp::os;
 
 #include "affine.h"
@@ -28,6 +30,9 @@ private:
 
     int user = 5;
     int eye = 0;
+    bool use_eros = true;
+    bool colored = false;
+    bool video = true;
 
     std::ofstream file;
 
@@ -39,6 +44,9 @@ private:
     cv::Mat eros_conv;
     eyeTracking tracker_handler;
     std::thread computation_thread;
+    cv::Mat window;
+    cv::Mat eros_color;
+    cv::VideoWriter output;
 
 public:
 
@@ -103,11 +111,13 @@ public:
 
         yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AE:i", "fast_tcp");
 
-        // tracker_handler.init(translation, angle, pscale, nscale);    // KEEP
         tracker_handler.init(u,v,theta, phi, radius, r, rotation, fast); 
     
         computation_thread = std::thread([this]{fixed_step_loop();});
         
+        if (video){
+            output = cv::VideoWriter("/usr/local/src/workbook_yvonne-vullers/ellipse_code/output.mp4", cv::VideoWriter::fourcc('X', '2', '6', '4'), 250, cv::Size(img_size.width, img_size.height));
+        }
 
         return true;
     }
@@ -119,88 +129,114 @@ public:
     void fixed_step_loop() {
 
         double timer = 0;
-        while (!input_port.isStopping()) {
-
-                ev::info my_info = input_port.readChunkT(0.004, true); //multiple of 4
-                timer = my_info.timestamp;
-                // std::cout << "timestamp video: " << timer << std::endl;
-                
-                if (timer > begin_time){
-                    for (auto &v : input_port)
-                        if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
-                            eros.update(v.x, v.y);
-                        }
-
-
-                    if (fast == false){
-                        centre = cv::Mat::zeros(260,346, CV_64F);
-                        centre.at<double>(u,v) = 1;
-                        centre.at<double>(u+1,v) = 1;
-                        centre.at<double>(u-1,v) = 1;
-                        centre.at<double>(u,v+1) = 1;
-                        centre.at<double>(u,v-1) = 1;
-
-                        centre.at<double>(130,173) = 1;
-                        centre.at<double>(130+1,173) = 1;
-                        centre.at<double>(130-1,173) = 1;
-                        centre.at<double>(130,173+1) = 1;
-                        centre.at<double>(130,173-1) = 1;
-                    }
-                        
-
-                                
-
-                    tracker_handler.createTemplates(5);
-
-                    
-                    file << timer << " " << float(tracker_handler.ymin) << " " << float(tracker_handler.xmin) << " " << float(tracker_handler.ymax) << " " << float(tracker_handler.xmax) << " " << float(1.0) << std::endl; //<< " " << tracker_handler.center_y << " " << tracker_handler.center_x << " " << tracker_handler.no_motion << std::endl;
-
-                    // tracker_handler.eyeCenter();
-                    //std::cout << "created templates" << std::endl;
-                    tracker_handler.setEROS(eros.getSurface()); // filter eros and select shape according to ROI. KEEP
-                    //tracker_handler.sobelEdges();
-                    //std::cout << "set EROS" << std::endl;
-                    tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
-                    //std::cout << "compared" << std::endl;
-                    tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
-                    //std::cout << "updated" << std::endl;
-                    tracker_handler.reset(); 
-                    //std::cout << "reset" << std::endl;
-                    // yInfo()<<tracker_handler.scores_vector[0]<<tracker_handler.scores_vector[1]<<tracker_handler.scores_vector[2]<<tracker_handler.scores_vector[3] << tracker_handler.scores_vector[4];
-
-
-                    // cv::Mat norm_mexican;
-                    // cv::normalize(tracker_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-                    // imshow("MEXICAN ROI", tracker_handler.mexican_template_64f+0.5);
-                    // imshow("TEMPLATE ROI", tracker_handler.roi_template_64f);
-                    // imshow("TEMPLATE RESIZE", tracker_handler.roi_resized);
-                    // imshow("EROS ROI", tracker_handler.eros_tracked_64f);
-                    //cv::imshow("EROS RESIZE", tracker_handler.eros_resized);
-
-                    //cv::Mat arc = cv::Mat::zeros(260, 346, CV_32F);
-
-                    
+        double chunk_time = 0.004;
+        ev::info my_info;
         
-                    //cv::ellipse(arc,cv::Point(u-30,v-10),cv::Size(80,40),20,-180,0,cv::Scalar(255,255,255),2);
-                    //cv::ellipse(arc,cv::Point(145,255),cv::Size(300,80),3, -105,-60,cv::Scalar(255,255,255),4);
+        while (!input_port.isStopping()) {
+            
+            if (use_eros == true){
+                my_info = input_port.readChunkT(0.004, true);
+            } else {
+                my_info = input_port.readSlidingWinT(0.004, chunk_time); //multiple of 4 ms
+                chunk_time += 0.004;
+            }
 
+            if (use_eros == false){
+                window = cv::Mat::zeros(img_size.height, img_size.width, CV_32F);
+            }
+            
+            timer = my_info.timestamp;
+            
+            std::cout << "timestamp video: " << timer << " " <<my_info.count <<" " << my_info.duration/12.5 <<std::endl;
+            
+            
+            for (auto &v : input_port)
+                // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
 
-                    //arc.convertTo(arc, CV_64F);
+                    if (use_eros == true){
+                        eros.update(v.x, v.y); 
+                    } else {
+                        eros.update(v.x, v.y); 
+                        window.at<float>(v.y, v.x) = 1;
+                    }
+                    
+                // }
                     
 
+                            
+            if (timer > begin_time){    
 
-                    eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
+                auto tstart = std::chrono::high_resolution_clock::now();
 
-                    cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
-                    cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
-
-                    cv::waitKey(1);
-
-                    
-                    // cv::circle(eros_filtered, new_position, 2, 255, -1);
-                    // cv::rectangle(eros_filtered, roi_around_shape, 255,1,8,0);
-                    // imshow("EROS FULL", tracker_handler.eros_filtered);
+                tracker_handler.createTemplates(5);
+                
+                if (use_eros == true){
+                    tracker_handler.setEROS(eros.getSurface());
+                } else {
+                    tracker_handler.setEROS(window);
                 }
+
+                tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
+                tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
+                tracker_handler.reset(); 
+
+                
+                auto tend = std::chrono::high_resolution_clock::now();
+                auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
+
+                //file << timer << " " << float(tracker_handler.ymin) << " " << float(tracker_handler.xmin) << " " << float(tracker_handler.ymax) << " " << float(tracker_handler.xmax) << " " << float(1.0) << std::endl;
+                file << timer << " " << float(tracker_handler.ymin) << " " << float(tracker_handler.xmin) << " " << float(tracker_handler.ymax) << " " << float(tracker_handler.xmax) << " " << float(1.0) << " " << tracker_handler.center_y << " " << tracker_handler.center_x << " " << elapsed_time << std::endl;
+
+
+            }
+
+            if (use_eros == true){
+                eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569);
+                cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
+
+                // cv::arrowedLine(eros_conv, cv::Point(tracker_handler.center_x,tracker_handler.center_y), cv::Point(tracker_handler.end_x, tracker_handler.end_y),cv::Scalar(255,255,255), 2);
+                cv::Mat current_template_temp, eros_temp;
+
+                if (colored = true){
+                    
+                    tracker_handler.current_template.convertTo(current_template_temp, CV_8UC3, 2.5);
+                    eros_conv.convertTo(eros_temp, CV_8UC3, 255);
+                    cv::cvtColor(eros_temp, eros_temp, cv::COLOR_GRAY2BGR);
+
+                    cv::Mat red = cv::Mat::zeros(tracker_handler.cam[eyeTracking::h], tracker_handler.cam[eyeTracking::w], CV_8UC3);
+                    red.setTo(cv::Scalar(0,0,255), current_template_temp);
+
+                    cv::imshow("EROS FULL",  eros_temp + red);
+                }
+                tracker_handler.current_template.convertTo(current_template_temp, CV_64F, 2);
+                cv::imshow("EROS FULL", eros_conv + current_template_temp);
+
+                if (video == true){
+                    cv::Mat frame = eros_conv + current_template_temp;
+               
+                    frame.convertTo(frame, CV_8U, 255);
+                    cv::cvtColor(frame, frame, cv::COLOR_GRAY2BGR);
+                    output.write(frame);
+                }
+                
+        
+                
+            } else {
+                cv::namedWindow("window", cv::WINDOW_NORMAL);
+                cv::imshow("window", window);
+
+                eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
+                cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
+                cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
+            }
+                
+            if (timer > 26){
+                cv::waitKey(0);
+            } else {
+                cv::waitKey(1);
+            }
+            
+    
         }
     }
 
@@ -209,12 +245,21 @@ public:
     }
 
     bool interruptModule() override {
+        if (video == true){
+            output.release();
+        }
+        
         input_port.stop();
         return true;
     }
 
     bool close() override {
+        if (video == true){
+            output.release();
+        }
+
         input_port.stop();
+        
 
         yInfo() << "waiting for computation thread ... ";
         computation_thread.join();

@@ -45,6 +45,8 @@ cv::Mat makeEllipse (float r, double theta, double phi, int height, int width){
 	double xmin = 2;
 	double ymin = 2;
 
+	double scale = sqrt(1-pow(r,2));
+
 
 	for (float t = -M_PI; t < M_PI; t += 2*M_PI/1000){
 		// YAW (y) & PITCH (x)
@@ -73,8 +75,8 @@ cv::Mat makeEllipse (float r, double theta, double phi, int height, int width){
 
 	}
 	// center of pupil?
-	center_x = (sin(theta) + 1)*height;
-	center_y = (-sin(phi)*cos(theta)+1)*height;
+	center_x = (scale*(sin(theta)) + 1)*height;
+	center_y = (scale*(-sin(phi)*cos(theta))+1)*height;
 
 	std::cout << center_x << ", " << center_y << std::endl; 
 
@@ -190,26 +192,28 @@ int main(int argc, char** argv)
 	// points();
 
 	//eyeshape();
+	// -0.00688444, 0.982431
 
-	ellipse = makeEllipse(0.5, M_PI/4, 0, 98, 98); 
+	double theta = -0.00688444;
+	double phi =0.982431;
 
-	make_template(ellipse, mexican_template);
-	mexican_template.at<float>(98,98) = 1;
+	ellipse = makeEllipse(0.5, theta, phi, 98, 98); 
+
+	// make_template(ellipse, mexican_template);
+	// mexican_template.at<float>(98,98) = 1;
 
 	//std::cout << mexican_template << std::endl;
-	mexican_template = mexican_template + one;
-	mexican_template.convertTo(mexican_template, CV_8UC1, 255/2); 
+	// mexican_template = mexican_template + one;
+	// mexican_template.convertTo(mexican_template, CV_8UC1, 255/2); 
 
-	cv::applyColorMap(mexican_template, colored, cv::COLORMAP_JET);
+	// cv::applyColorMap(mexican_template, colored, cv::COLORMAP_JET);
 	
-	// double theta = M_PI/4;
-	// double phi = M_PI/4;
-
 	// std::cout << -1*(sin(theta)+1)*98 << ", " << 1*(sin(phi)+1)*98 << std::endl;
-
-	// cv::arrowedLine(ellipse, cv::Point(98,98), cv::Point((1*sin(theta)+1)*98, (-1*sin(phi)+1)*98),cv::Scalar(255,255,255) );
+	float end_x = (((center_x/98 - 1)* 1.5)+1)*98;
+	float end_y = (((center_y/98 - 1)* 1.5)+1)*98;
+	cv::arrowedLine(ellipse, cv::Point(center_x,center_y), cv::Point(end_x, end_y),cv::Scalar(255,255,255) );
 	cv::namedWindow("ellipse", cv::WINDOW_NORMAL);
-	cv::imshow("ellipse", mexican_template);
+	cv::imshow("ellipse", ellipse);
 	cv::waitKey(0);
 	
 
