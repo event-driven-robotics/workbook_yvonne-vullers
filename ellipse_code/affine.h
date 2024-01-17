@@ -159,25 +159,6 @@ public:
 
         ell_filter(filter_crop).copyTo(tempCur);
 
-        if (speed == false){
-            vis_ellipse = cv::Mat::zeros(frame_height, frame_width, CV_32F);
-
-            centre_u = round(((sqrt(1))*sin(theta)*cos(phi)+1)*width);
-            centre_v = round(((sqrt(1))*sin(theta)*sin(phi)+1)*height);
-
-            vis_ellipse.at<float>(centre_v,centre_u) = 1;
-            vis_ellipse.at<float>(centre_v+1,centre_u) = 1;
-            vis_ellipse.at<float>(centre_v-1,centre_u) = 1;
-            vis_ellipse.at<float>(centre_v,centre_u+1) = 1;
-            vis_ellipse.at<float>(centre_v,centre_u-1) = 1;
-
-            // std::cout << centre_v << ", " << centre_u << std::endl;
-            // std::cout << state[2] << ", " << state[3] << std::endl;
-            centre_cut = cv::Mat::zeros(filter_shape_x, filter_shape_y, CV_64F);
-            vis_ellipse(filter_crop).copyTo(centre_cut);
-
-        }
-
         return tempCur;
     }
 
@@ -186,11 +167,6 @@ public:
                         
         cur.copyTo(current_template(crop_shape)); 
 
-
-        if (speed == false){
-            centre_full = cv::Mat::zeros(cam[eyeTracking::h], cam[eyeTracking::w], CV_64F);
-            centre_cut.copyTo(centre_full(crop_shape));  
-        }    
     }
 
 
@@ -208,25 +184,20 @@ public:
                 template_matrix_last = makeEllipse(state[2], state[3], state[4], state[4], first);
                 first = 1;
                 eyeCenter();
-
             }
-
 
             if (rot_mat[i][0] == 0 && rot_mat[i][1] != 0){
-                update_phi = asin(std::min(1.0, std::max(-1.0,-(center_y_small+rot_mat[i][1]-1)/(scale*cos(state[2]))))) - state[3];
+                update_phi = asin(std::min(1.0, std::max(-1.0,-(center_y_small+rot_mat[i][1])/(scale*cos(state[2]))))) - state[3];
                 updates[i] = update_phi;
-                // np.arcsin(-(y_center2+pixel_shift)/(scale*np.cos(theta))) - phi
             }
             else if (rot_mat[i][1] == 0 && rot_mat[i][0] != 0){
-                update_theta = asin(std::min(1.0, std::max(-1.0, (center_x_small+rot_mat[i][0]-1)/scale))) - state[2];
+                update_theta = asin(std::min(1.0, std::max(-1.0, (center_x_small+rot_mat[i][0])/scale))) - state[2];
                 updates[i] = update_theta;
-                // np.arcsin((x_center2+pixel_shift)/scale) - theta
             }
             
             cv::Mat template_matrix = makeEllipse(state[2] + update_theta, state[3] + update_phi, state[4], state[4], first); // 8u is gray scale image with numbers from 0 to 255... you could need 32f or 64f in the future
 
             cv::Mat mexican_template; 
-            // mexican blur 
             make_template(template_matrix, mexican_template); 
             mexican_template.convertTo(mexican_template, CV_64F); 
 
@@ -301,11 +272,13 @@ public:
         
     }
 
+
     double similarity_score(const cv::Mat &observation, const cv::Mat &expectation) {
         static cv::Mat muld;
         muld = expectation.mul(observation);
         return cv::sum(cv::sum(muld))[0];
     }
+
 
     void performComparisons(){
         for (int t = 0; t < mexican_templates.size(); t++) {
@@ -314,24 +287,6 @@ public:
         }
     }
 
-    // void updateState(){
-
-    //     double no_motion = scores_vector[4];
-    //     int best_score_index = std::max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-    //     double best_score = *max_element(scores_vector.begin(), scores_vector.end());
-
-    //     if(no_motion!=0){
-    //         if (best_score_index == 0)
-    //             state[2] += rotation;
-    //         else if (best_score_index == 1)
-    //             state[2] -= rotation;
-    //         else if (best_score_index == 2)
-    //             state[3] += rotation;
-    //         else if (best_score_index == 3)
-    //             state[3] -= rotation;
-    //     }
-
-    // }
 
     void updateState(){
 
@@ -350,18 +305,6 @@ public:
                 state[3] += updates[3];
         }
 
-        // std::cout << state[2]<< ", " << state[3] << std::endl;
-
-    }
-
-    void updateStateAll(){
-        no_motion = scores_vector[4];
-
-        if(scores_vector[0] > no_motion) state[2] += rotation;
-        if(scores_vector[1] > no_motion) state[2] -= rotation;
-        if(scores_vector[2] > no_motion) state[3] += rotation;
-        if(scores_vector[3] > no_motion) state[3] -= rotation;
-
     }
 
 
@@ -370,23 +313,21 @@ public:
         double phi = state[3];
         double radius = state[4];
 
-        center_x_small = sqrt(1-pow(r,2))*sin(theta) + 1;
-        center_y_small = sqrt(1-pow(r,2))*(-sin(phi)*cos(theta)) + 1;
-        center_x = round(center_x_small*state[4]) + state[1] - state[4];
-        center_y = round(center_y_small*state[4]) + state[0] - state[4];
+        center_x_small = sqrt(1-pow(r,2))*sin(theta);
+        center_y_small = sqrt(1-pow(r,2))*(-sin(phi)*cos(theta));
+        center_x = round(center_x_small*state[4]) + state[1];
+        center_y = round(center_y_small*state[4]) + state[0];
 
-        end_x = ((((center_x - state[1] + state[4])/radius - 1)* 2)+1)*radius + state[1] - state[4];
-	    end_y = ((((center_y - state[0] + state[4])/radius - 1)* 2)+1)*radius + state[0] - state[4];
-        // center_x = round(((xmax+xmin)/2)*radius) + state[1] - radius;
-        // center_y = round(((ymax+ymin)/2)*radius) + state[0] - radius;
+        end_x = center_x_small*2*radius + state[1];
+	    end_y = center_y_small*2*radius + state[0];
 
-        xmax = r*cos(0)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
-        xmin = r*cos(M_PI)*cos(theta)+sqrt(1-pow(r,2))*sin(theta) + 1;
+        xmax = r*cos(0)*cos(theta)+sqrt(1-pow(r,2))*sin(theta);
+        xmin = r*cos(M_PI)*cos(theta)+sqrt(1-pow(r,2))*sin(theta);
 
-        xmax = round(xmax*radius)+state[1] - radius;
-        xmin = round(xmin*radius)+state[1] - radius;
-        ymax = round(ymax*radius)+state[0] - radius;
-        ymin = round(ymin*radius)+state[0] - radius;
+        xmax = round(xmax*radius)+state[1];
+        xmin = round(xmin*radius)+state[1];
+        ymax = round(ymax*radius)+state[0];
+        ymin = round(ymin*radius)+state[0];
 
         if (speed == false){
             centers = cv::Mat::zeros(260, 346, CV_32F);

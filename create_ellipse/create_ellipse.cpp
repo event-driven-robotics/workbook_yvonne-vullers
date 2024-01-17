@@ -120,11 +120,11 @@ cv::Point maxlocs (cv::Mat binaryImage){
 void points(){
 	cv::Mat arc = cv::Mat::zeros(400,400, CV_32F);
 
-	cv::ellipse(arc,cv::Point(185,90),cv::Size(200,80),10, 40,110,cv::Scalar(255,255,255),2);
+	cv::ellipse(arc, cv::Point(180, 135), cv::Size(110,70), 0, 180, 360, cv::Scalar(255,255,255),2);
 	for(int i = 0; i <400; i++){
 		for(int j = 0; j < 400; j++){
 			if(arc.at<float>(i,j) == 255){
-				std::cout << j << ", " ; //<< 399-i << std::endl;
+				std::cout << i << ", " ; //<< 399-i << std::endl;
 			}
 		}
 	}
@@ -189,32 +189,32 @@ int main(int argc, char** argv)
 
 	//eyelid(200,200);
 
-	// points();
+	points();
 
 	//eyeshape();
 	// -0.00688444, 0.982431
 
-	double theta = -0.00688444;
-	double phi =0.982431;
+	// double theta = -0.00688444;
+	// double phi =0.982431;
 
-	ellipse = makeEllipse(0.5, theta, phi, 98, 98); 
+	// ellipse = makeEllipse(0.5, theta, phi, 98, 98); 
 
-	// make_template(ellipse, mexican_template);
-	// mexican_template.at<float>(98,98) = 1;
+	// // make_template(ellipse, mexican_template);
+	// // mexican_template.at<float>(98,98) = 1;
 
-	//std::cout << mexican_template << std::endl;
-	// mexican_template = mexican_template + one;
-	// mexican_template.convertTo(mexican_template, CV_8UC1, 255/2); 
+	// //std::cout << mexican_template << std::endl;
+	// // mexican_template = mexican_template + one;
+	// // mexican_template.convertTo(mexican_template, CV_8UC1, 255/2); 
 
-	// cv::applyColorMap(mexican_template, colored, cv::COLORMAP_JET);
+	// // cv::applyColorMap(mexican_template, colored, cv::COLORMAP_JET);
 	
-	// std::cout << -1*(sin(theta)+1)*98 << ", " << 1*(sin(phi)+1)*98 << std::endl;
-	float end_x = (((center_x/98 - 1)* 1.5)+1)*98;
-	float end_y = (((center_y/98 - 1)* 1.5)+1)*98;
-	cv::arrowedLine(ellipse, cv::Point(center_x,center_y), cv::Point(end_x, end_y),cv::Scalar(255,255,255) );
-	cv::namedWindow("ellipse", cv::WINDOW_NORMAL);
-	cv::imshow("ellipse", ellipse);
-	cv::waitKey(0);
+	// // std::cout << -1*(sin(theta)+1)*98 << ", " << 1*(sin(phi)+1)*98 << std::endl;
+	// float end_x = (((center_x/98 - 1)* 1.5)+1)*98;
+	// float end_y = (((center_y/98 - 1)* 1.5)+1)*98;
+	// cv::arrowedLine(ellipse, cv::Point(center_x,center_y), cv::Point(end_x, end_y),cv::Scalar(255,255,255) );
+	// cv::namedWindow("ellipse", cv::WINDOW_NORMAL);
+	// cv::imshow("ellipse", ellipse);
+	// cv::waitKey(0);
 	
 
 	// cv::Mat arc = cv::Mat::zeros(1000,1000, CV_32F);

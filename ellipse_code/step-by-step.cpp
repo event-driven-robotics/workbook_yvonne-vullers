@@ -24,15 +24,15 @@ private:
     bool fast = true;
 
     double r{0.5};
-    double begin_time;
+    double begin_time, end_time;
 
     double a, b, c, d, e, f, g, h;
 
-    int user = 5;
-    int eye = 0;
+    int user = 13;
+    int eye = 1;
     bool use_eros = true;
     bool colored = false;
-    bool video = true;
+    bool video = false;
 
     std::ofstream file;
 
@@ -92,6 +92,7 @@ public:
         g = user_params.find("g").asFloat64();
         h = user_params.find("h").asFloat64();
         begin_time = user_params.find("begin").asFloat64();
+        end_time = user_params.find("end").asFloat64();
 
         eros.init(img_size.width, img_size.height, eros_k, eros_d);
 
@@ -99,15 +100,15 @@ public:
             yError()<<"cannot open input port";
             return false;
         }
+
         file.open("/usr/local/src/workbook_yvonne-vullers/ellipse_code/center.csv");
 
         if(!file.is_open())
         {
-            std::cout << " not check" << std::endl;
+            std::cout << "File is not opened" << std::endl;
         }
 
         file << std::setprecision(6) << std::fixed;
-
 
         yarp::os::Network::connect("/file/ch0dvs:o", "/shape-position/AE:i", "fast_tcp");
 
@@ -116,7 +117,7 @@ public:
         computation_thread = std::thread([this]{fixed_step_loop();});
         
         if (video){
-            output = cv::VideoWriter("/usr/local/src/workbook_yvonne-vullers/ellipse_code/output.mp4", cv::VideoWriter::fourcc('X', '2', '6', '4'), 250, cv::Size(img_size.width, img_size.height));
+            output = cv::VideoWriter("/usr/local/src/workbook_yvonne-vullers/ellipse_code/output" + std::to_string(user) + std::to_string(eye) +"eroscf.mp4", cv::VideoWriter::fourcc('X', '2', '6', '4'), 250, cv::Size(img_size.width, img_size.height));
         }
 
         return true;
@@ -137,18 +138,14 @@ public:
             if (use_eros == true){
                 my_info = input_port.readChunkT(0.004, true);
             } else {
-                my_info = input_port.readSlidingWinT(0.004, chunk_time); //multiple of 4 ms
+                my_info = input_port.readSlidingWinT(0.004, chunk_time); 
                 chunk_time += 0.004;
-            }
-
-            if (use_eros == false){
                 window = cv::Mat::zeros(img_size.height, img_size.width, CV_32F);
             }
             
             timer = my_info.timestamp;
             
-            std::cout << "timestamp video: " << timer << " " <<my_info.count <<" " << my_info.duration/12.5 <<std::endl;
-            
+            // std::cout << "timestamp video: " << timer << " " <<my_info.count <<" " << my_info.duration/12.5 <<std::endl;
             
             for (auto &v : input_port)
                 // if(v.y > a*pow(v.x,4)+b*pow(v.x,3)+c*pow(v.x,2)+d*v.x+e && v.y < f*pow(v.x,2)+g*v.x+h){
@@ -161,9 +158,7 @@ public:
                     }
                     
                 // }
-                    
-
-                            
+                         
             if (timer > begin_time){    
 
                 auto tstart = std::chrono::high_resolution_clock::now();
@@ -176,8 +171,8 @@ public:
                     tracker_handler.setEROS(window);
                 }
 
-                tracker_handler.performComparisons();                    // for all filters, check similarity score. KEEP
-                tracker_handler.updateState();                        // change states based on results. NOT NEEDED?
+                tracker_handler.performComparisons();                   
+                tracker_handler.updateState();  
                 tracker_handler.reset(); 
 
                 
@@ -190,34 +185,31 @@ public:
 
             }
 
+            cv::Mat current_template_temp, eros_temp;
+
             if (use_eros == true){
                 eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569);
                 cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
 
-                // cv::arrowedLine(eros_conv, cv::Point(tracker_handler.center_x,tracker_handler.center_y), cv::Point(tracker_handler.end_x, tracker_handler.end_y),cv::Scalar(255,255,255), 2);
-                cv::Mat current_template_temp, eros_temp;
+                cv::arrowedLine(eros_conv, cv::Point(tracker_handler.center_x,tracker_handler.center_y), cv::Point(tracker_handler.end_x, tracker_handler.end_y),cv::Scalar(255,255,255), 2);
+                
 
-                if (colored = true){
+                if (colored == true){
                     
                     tracker_handler.current_template.convertTo(current_template_temp, CV_8UC3, 2.5);
                     eros_conv.convertTo(eros_temp, CV_8UC3, 255);
                     cv::cvtColor(eros_temp, eros_temp, cv::COLOR_GRAY2BGR);
 
                     cv::Mat red = cv::Mat::zeros(tracker_handler.cam[eyeTracking::h], tracker_handler.cam[eyeTracking::w], CV_8UC3);
+
                     red.setTo(cv::Scalar(0,0,255), current_template_temp);
 
                     cv::imshow("EROS FULL",  eros_temp + red);
                 }
+
+
                 tracker_handler.current_template.convertTo(current_template_temp, CV_64F, 2);
                 cv::imshow("EROS FULL", eros_conv + current_template_temp);
-
-                if (video == true){
-                    cv::Mat frame = eros_conv + current_template_temp;
-               
-                    frame.convertTo(frame, CV_8U, 255);
-                    cv::cvtColor(frame, frame, cv::COLOR_GRAY2BGR);
-                    output.write(frame);
-                }
                 
         
                 
@@ -227,11 +219,22 @@ public:
 
                 eros.getSurface().convertTo(eros_conv, CV_64F, 0.003921569); 
                 cv::namedWindow("EROS FULL", cv::WINDOW_NORMAL);
-                cv::imshow("EROS FULL", eros_conv + tracker_handler.current_template + tracker_handler.centers);
+                tracker_handler.current_template.convertTo(current_template_temp, CV_64F, 2);
+                cv::imshow("EROS FULL", eros_conv + current_template_temp);
+            }
+
+            if (video == true){
+                cv::Mat frame = eros_conv + current_template_temp;
+            
+                frame.convertTo(frame, CV_8U, 255);
+                cv::cvtColor(frame, frame, cv::COLOR_GRAY2BGR);
+                output.write(frame);
             }
                 
-            if (timer > 26){
-                cv::waitKey(0);
+            if (timer > end_time){
+                // cv::waitKey(0);
+                std::cout << "done" << std::endl;
+                break;
             } else {
                 cv::waitKey(1);
             }
