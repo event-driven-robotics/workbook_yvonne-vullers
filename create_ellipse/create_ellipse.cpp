@@ -104,19 +104,6 @@ cv::Mat makeEllipse (float r, double theta, double phi, int height, int width){
 	return ell_filter;
 }
 
-cv::Point maxlocs (cv::Mat binaryImage){
-	cv::Mat locations;   // output, locations of non-zero pixels
-	cv::findNonZero(binaryImage, locations);
-
-	double minVal, maxVal;
-	cv::minMaxLoc(locations, &minVal, &maxVal);
-
-	cv::Point pnt = cv::Point(0,0);
-	
-	std::cout << minVal << std::endl;
-	return pnt;
-}
-
 void points(){
 	cv::Mat arc = cv::Mat::zeros(400,400, CV_32F);
 
@@ -154,33 +141,6 @@ void eyelid(int height, int width){
 
 }
 
-void eyeshape(){
-	cv::Mat arc = cv::Mat::zeros(400,400, CV_32F);
-	cv::Mat mask = cv::Mat::zeros(400,400, CV_32F);
-	cv::Mat masked = cv::Mat::zeros(400,400, CV_32F);
-	cv::Mat pupil = cv::Mat::zeros(400,400, CV_32F);
-	
-	
-	
-	cv::ellipse(pupil,cv::Point(130,175),cv::Size(50,50),0, 0,360,cv::Scalar(255,255,255),4);
-
-	//cv::ellipse(arc,cv::Point(160,310),cv::Size(150,200),25, -150,-50,cv::Scalar(255,255,255),-1);
-	cv::ellipse(arc,cv::Point(145,305),cv::Size(140,200),32, -155,-55,cv::Scalar(255,255,255),-1);
-	cv::ellipse(mask,cv::Point(240,60),cv::Size(170,200), 25, 125,35,cv::Scalar(255,255,255),-1);
-
-	cv::bitwise_and(mask, arc, masked);
-	cv::bitwise_and(pupil, masked, pupil);
-
-	cv::ellipse(pupil,cv::Point(160,310),cv::Size(150,200),25, -160,-50,cv::Scalar(255,255,255),1);
-	cv::ellipse(pupil,cv::Point(240,60),cv::Size(170,200),25, 125,35,cv::Scalar(255,255,255),1);
-	
-
-	cv::imshow("arc", pupil);
-
-	cv::imshow("mask", masked);
-	cv::waitKey(0);
-
-}
 int main(int argc, char** argv) 
 { 	
 	cv::Mat ellipse;
@@ -191,7 +151,6 @@ int main(int argc, char** argv)
 
 	points();
 
-	//eyeshape();
 	// -0.00688444, 0.982431
 
 	// double theta = -0.00688444;
