@@ -1,5 +1,11 @@
 # ELLIPSE_CODE
-***NOTE: in the code (config.ini, main.cpp, step-by-step.cpp, affine.h), theta and phi are switched compared to the paper. ***
+***NOTE: in the code (config.ini, main.cpp, step-by-step.cpp, affine.h), some parameters are different compared to the paper.***
+
+***theta = phi***
+
+***phi = theta***
+
+***tau = r***
 
 To run this code, first load the dataset into **yarpdataplayer**. Make sure that the user and eye in [step-by-step.cpp](/ellipse_code/step-by-step.cpp) and [main.cpp](/ellipse_code/step-by-step.cpp) correspond to the user in the data. 
 The tracking can then be performed in two ways. Either step-by-step, or real-time.
