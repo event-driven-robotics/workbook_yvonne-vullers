@@ -9,7 +9,8 @@ Advantages and Applications of Event Cameras (NeVI)},
     year      = {2024}
 }
 ```
-https://github.com/user-attachments/assets/db4e6ce5-1e0b-4ec3-8711-c6d86a8c5ec3
+![gazecompressed-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/3cc14cfe-afba-4f7a-a419-c3c6ff4c7748)
+
 
 # workbook_yvonne-vullers
 In this repository you can find all the code I used for the eye-tracking project. Below, the contents of the folders are explained.
