@@ -1,10 +1,10 @@
 # Gaze Tracking with an Event Camera
 ```
-@InProceedings{chiavazza_2024_ECCV-NeVI,
-    author    = {Chiavazza, Stefano and Bartolozzi, Chiara and Glover, Arren},
-    title     = {Millisecond-latency Visual Fault-buttons using Event-cameras},
-    booktitle = {Proceedings of The 18th European Conference on Computer Vision (ECCV) Workshop on Neuromorphic Vision:
-Advantages and Applications of Event Cameras (NeVI)},
+@InProceedings{vullersICVSE2024,
+    author    = {Vullers, Yvonne and Gava, Luna and Glover, Arren and Bartolozzi, Chiara},
+    title     = {Towards Low-power, High-frequency Gaze Direction Tracking with an Event-camera},
+    booktitle = {Proceedings of The 18th European Conference on Computer Vision (ECCV)
+                 Workshop on Eyes of the Future: Integrating Computer Vision in Smart Eyewear (ICVSE)},
     month     = {September},
     year      = {2024}
 }
